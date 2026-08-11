@@ -1,0 +1,89 @@
+// Zero-knowledge password vault — metadata-only schema.
+// The server NEVER sees plaintext master passwords, vault keys, or item contents.
+// Ciphertext blobs are opaque to the server; all encryption/decryption happens client-side.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                 String   @id @default(uuid())
+  email              String   @unique
+  // Server-side hash of the client-computed auth hash (double hashing — see docs/02-cryptographic-architecture.md)
+  authHash           String
+  // KDF parameters used client-side to derive the Master Key from the master password.
+  kdfSalt            String
+  kdfMemoryKb        Int      @default(65536)
+  kdfIterations       Int      @default(3)
+  kdfParallelism     Int      @default(4)
+  // The Vault Key, randomly generated client-side, encrypted under the Master Key (AES-256-GCM). Opaque blob.
+  encryptedVaultKeyCiphertext String
+  encryptedVaultKeyIv         String
+  createdAt          DateTime @default(now())
+
+  folders      Folder[]
+  vaultItems   VaultItem[]
+  refreshTokens RefreshToken[]
+  auditEvents  AuditEvent[]
+}
+
+model Folder {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Folder name is itself encrypted client-side (AES-256-GCM) — server never sees plaintext folder names.
+  nameCiphertext String
+  nameIv         String
+  createdAt DateTime @default(now())
+
+  vaultItems VaultItem[]
+}
+
+enum VaultItemType {
+  LOGIN
+  SECURE_NOTE
+  CARD
+  IDENTITY
+}
+
+model VaultItem {
+  id         String        @id @default(uuid())
+  userId     String
+  user       User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  folderId   String?
+  folder     Folder?       @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  type       VaultItemType
+  favorite   Boolean       @default(false)
+  // Entire item payload (name, username, password, notes, TOTP seed, etc.) is one AES-256-GCM ciphertext blob.
+  ciphertext String
+  iv         String
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String
+  expiresAt DateTime
+  revoked   Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+// Tamper-resistant audit log — hash-chained per doc section 5.E.
+model AuditEvent {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  eventType String
+  metadata  Json?
+  prevHash  String
+  hash      String
+  createdAt DateTime @default(now())
+}
