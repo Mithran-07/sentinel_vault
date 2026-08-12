@@ -202,14 +202,17 @@ router.post("/login", authLimiter, async (req, res) => {
 
   await recordAuditEvent(user.id, "LOGIN_SUCCESS", { ip: req.ip });
 
-  // Check if MFA is enabled for this account
+  // Check if MFA (TOTP or Passkey) is enabled for this account
   const mfa = await prisma.mfaMethod.findFirst({
-    where: { userId: user.id, type: "TOTP", verifiedAt: { not: null } },
+    where: { userId: user.id, verifiedAt: { not: null } },
+  });
+  const passkeyCount = await prisma.passkey.count({
+    where: { userId: user.id },
   });
 
-  if (mfa) {
+  if (mfa || passkeyCount > 0) {
     const mfaToken = signMfaChallengeToken(user.id);
-    await recordAuditEvent(user.id, "MFA_CHALLENGE_CREATED", { type: "TOTP" });
+    await recordAuditEvent(user.id, "MFA_CHALLENGE_CREATED", { type: mfa ? "TOTP" : "WEBAUTHN" });
     return res.json({
       mfaRequired: true,
       mfaToken,

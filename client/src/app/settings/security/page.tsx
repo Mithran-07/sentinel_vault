@@ -7,6 +7,7 @@ import { useVault } from "@/context/VaultContext";
 import { ActiveSessions } from "@/components/ActiveSessions";
 import { MfaSettings } from "@/components/MfaSettings";
 import { PasskeySettings } from "@/components/PasskeySettings";
+import { RecoveryCodeSettings } from "@/components/RecoveryCodeSettings";
 
 export default function SecuritySettingsPage() {
   const router = useRouter();
@@ -54,7 +55,7 @@ export default function SecuritySettingsPage() {
             Security Settings
           </Link>
           <Link href="/audit" className="flex items-center gap-3 px-3 py-2 rounded-lg text-foreground/70 hover:bg-surfaceHover hover:text-foreground transition-colors">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg>
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg>
             Audit Log
           </Link>
           <Link href="/enterprise" className="flex items-center gap-3 px-3 py-2 rounded-lg text-foreground/70 hover:bg-surfaceHover hover:text-foreground transition-colors">
@@ -74,6 +75,7 @@ export default function SecuritySettingsPage() {
         <div className="flex-1 p-8 max-w-4xl space-y-8">
           <PasskeySettings />
           <MfaSettings />
+          <RecoveryCodeSettings />
           <ActiveSessions />
         </div>
       </main>

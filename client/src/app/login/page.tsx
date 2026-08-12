@@ -24,6 +24,10 @@ export default function LoginPage() {
   const [totpCode, setTotpCode] = useState("");
   const [savedMasterKey, setSavedMasterKey] = useState<Uint8Array | null>(null);
 
+  // Emergency Recovery Code State
+  const [useRecoveryCode, setUseRecoveryCode] = useState(false);
+  const [recoveryCodeInput, setRecoveryCodeInput] = useState("");
+
   // Passkey Login Vault Unlock State (Zero-Knowledge separation requirement)
   const [passkeyAuthenticatedData, setPasskeyAuthenticatedData] = useState<any>(null);
 
@@ -96,6 +100,35 @@ export default function LoginPage() {
       router.push("/vault");
     } catch (err) {
       setError(err instanceof Error ? err.message : "MFA authentication failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onRecoverySubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!mfaToken || !savedMasterKey) return;
+
+    setError(null);
+    setBusy(true);
+    try {
+      const res = await api.post("/auth/recovery/verify", {
+        mfaToken,
+        recoveryCode: recoveryCodeInput.trim(),
+      });
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || "Recovery code verification failed");
+      }
+
+      const data = await res.json();
+      setTokens(data.accessToken, data.refreshToken);
+      const vaultKey = await decryptVaultKey(data.encryptedVaultKey, savedMasterKey);
+      setSession(vaultKey, email);
+      router.push("/vault");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Recovery verification failed");
     } finally {
       setBusy(false);
     }
@@ -177,14 +210,18 @@ export default function LoginPage() {
             {passkeyAuthenticatedData
               ? "Unlock Vault"
               : mfaRequired
-              ? "Two-Factor Authentication"
+              ? useRecoveryCode
+                ? "Emergency Recovery Code"
+                : "Two-Factor Authentication"
               : "Welcome back"}
           </h1>
           <p className="mt-2 text-sm text-foreground/60">
             {passkeyAuthenticatedData
               ? "Identity authenticated via Passkey. Enter Master Password to decrypt vault."
               : mfaRequired
-              ? "Enter 6-digit code from your authenticator app"
+              ? useRecoveryCode
+                ? "Enter 26-character emergency recovery code (Option A)"
+                : "Enter 6-digit code from your authenticator app"
               : "Unlock your zero-knowledge vault"}
           </p>
         </div>
@@ -289,6 +326,50 @@ export default function LoginPage() {
               </button>
             </form>
           </div>
+        ) : useRecoveryCode ? (
+          <form onSubmit={onRecoverySubmit} className="space-y-5 rounded-2xl border border-border/50 bg-surface p-8 shadow-xl">
+            <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-xs text-amber-400 font-medium">
+              ⚠️ MFA Bypass Mode (Master Password Verified)
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-sm font-medium text-foreground/80">Recovery Code</label>
+              <input
+                required
+                value={recoveryCodeInput}
+                onChange={(e) => setRecoveryCodeInput(e.target.value)}
+                placeholder="XXXXX-XXXXX-XXXXX-XXXXX-XXXXX-X"
+                className="w-full text-center text-sm font-mono tracking-wider rounded-lg border border-border bg-background py-3 text-foreground outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-all"
+              />
+            </div>
+
+            {error && (
+              <div className="rounded-lg bg-red-500/10 border border-red-500/20 p-3 text-sm text-red-500 flex items-start gap-2">
+                <svg className="w-4 h-4 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span>{error}</span>
+              </div>
+            )}
+
+            <button
+              disabled={busy || !recoveryCodeInput.trim()}
+              className="w-full rounded-lg bg-accent py-3 font-medium text-white shadow-sm hover:bg-accent-hover focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2 focus:ring-offset-surface disabled:opacity-70 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 mt-2"
+            >
+              {busy ? "Verifying Recovery Code..." : "Bypass MFA & Unlock Vault"}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setUseRecoveryCode(false);
+                setError(null);
+              }}
+              className="w-full text-xs text-foreground/50 hover:text-foreground text-center pt-2 transition-colors"
+            >
+              ← Back to Authenticator App
+            </button>
+          </form>
         ) : (
           <form onSubmit={onMfaSubmit} className="space-y-5 rounded-2xl border border-border/50 bg-surface p-8 shadow-xl">
             <div className="space-y-1">
@@ -319,19 +400,32 @@ export default function LoginPage() {
               {busy ? "Verifying TOTP..." : "Verify & Unlock"}
             </button>
 
-            <button
-              type="button"
-              onClick={() => {
-                setMfaRequired(false);
-                setMfaToken(null);
-                setSavedMasterKey(null);
-                setTotpCode("");
-                setError(null);
-              }}
-              className="w-full text-xs text-foreground/50 hover:text-foreground text-center pt-2 transition-colors"
-            >
-              ← Back to Login
-            </button>
+            <div className="pt-2 border-t border-border/50 flex flex-col gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setUseRecoveryCode(true);
+                  setError(null);
+                }}
+                className="text-xs text-accent hover:underline text-center font-medium transition-colors"
+              >
+                Lost access to your authenticator or passkey? Use a Recovery Code
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setMfaRequired(false);
+                  setMfaToken(null);
+                  setSavedMasterKey(null);
+                  setTotpCode("");
+                  setError(null);
+                }}
+                className="w-full text-xs text-foreground/50 hover:text-foreground text-center transition-colors"
+              >
+                ← Back to Login
+              </button>
+            </div>
           </form>
         )}
 
