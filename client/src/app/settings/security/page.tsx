@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useVault } from "@/context/VaultContext";
 import { ActiveSessions } from "@/components/ActiveSessions";
 import { MfaSettings } from "@/components/MfaSettings";
+import { PasskeySettings } from "@/components/PasskeySettings";
 
 export default function SecuritySettingsPage() {
   const router = useRouter();
@@ -71,6 +72,7 @@ export default function SecuritySettingsPage() {
         </header>
 
         <div className="flex-1 p-8 max-w-4xl space-y-8">
+          <PasskeySettings />
           <MfaSettings />
           <ActiveSessions />
         </div>

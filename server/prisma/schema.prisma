@@ -83,6 +83,7 @@ model Passkey {
   signCount    Int       @default(0)
   deviceType   String?
   name         String?
+  transports   String?
   createdAt    DateTime  @default(now())
   lastUsedAt   DateTime?
 }
