@@ -20,7 +20,7 @@ export async function recordAuditEvent(
 
     const last = await tx.auditEvent.findFirst({
       where: { userId },
-      orderBy: { createdAt: "desc" },
+      orderBy: { sequence: "desc" },
     });
     const prevHash = last?.hash ?? GENESIS_HASH;
 
@@ -37,7 +37,7 @@ export async function recordAuditEvent(
 export async function verifyAuditChain(userId: string) {
   const events = await prisma.auditEvent.findMany({
     where: { userId },
-    orderBy: { createdAt: "asc" },
+    orderBy: { sequence: "asc" },
   });
 
   let expectedPrev = GENESIS_HASH;

@@ -75,8 +75,12 @@ model RefreshToken {
 }
 
 // Tamper-resistant audit log — hash-chained per doc section 5.E.
+// Uses an autoincrement sequence (not createdAt) to reconstruct true commit
+// order — Postgres timestamps from DEFAULT now() don't reliably preserve
+// ordering under tight concurrent commits, even with advisory locks.
 model AuditEvent {
   id        String   @id @default(uuid())
+  sequence  Int      @default(autoincrement())
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   eventType String
