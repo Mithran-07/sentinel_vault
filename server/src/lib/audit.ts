@@ -13,17 +13,23 @@ export async function recordAuditEvent(
   eventType: string,
   metadata: Record<string, unknown> = {}
 ) {
-  const last = await prisma.auditEvent.findFirst({
-    where: { userId },
-    orderBy: { createdAt: "desc" },
-  });
-  const prevHash = last?.hash ?? GENESIS_HASH;
+  return prisma.$transaction(async (tx) => {
+    // Advisory lock keyed on a hash of userId — serializes concurrent appends
+    // for this user without blocking appends for other users.
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${userId}))`;
 
-  const payload = JSON.stringify({ userId, eventType, metadata, prevHash, ts: Date.now() });
-  const hash = crypto.createHash("sha256").update(payload).digest("hex");
+    const last = await tx.auditEvent.findFirst({
+      where: { userId },
+      orderBy: { createdAt: "desc" },
+    });
+    const prevHash = last?.hash ?? GENESIS_HASH;
 
-  return prisma.auditEvent.create({
-    data: { userId, eventType, metadata, prevHash, hash },
+    const payload = JSON.stringify({ userId, eventType, metadata, prevHash, ts: Date.now() });
+    const hash = crypto.createHash("sha256").update(payload).digest("hex");
+
+    return tx.auditEvent.create({
+      data: { userId, eventType, metadata: metadata as any, prevHash, hash },
+    });
   });
 }
 

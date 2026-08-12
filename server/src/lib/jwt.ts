@@ -1,7 +1,18 @@
 import jwt from "jsonwebtoken";
 
-const ACCESS_SECRET = process.env.JWT_ACCESS_SECRET || "dev-access-secret";
-const REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || "dev-refresh-secret";
+function requireSecret(name: string): string {
+  const value = process.env[name];
+  if (!value || value.length < 32) {
+    throw new Error(
+      `${name} must be set to a string of at least 32 characters. ` +
+      `Generate one with: openssl rand -base64 48`
+    );
+  }
+  return value;
+}
+
+const ACCESS_SECRET = requireSecret("JWT_ACCESS_SECRET");
+const REFRESH_SECRET = requireSecret("JWT_REFRESH_SECRET");
 
 export interface AccessTokenPayload {
   sub: string; // user id

@@ -1,5 +1,6 @@
+import "express-async-errors";
 import "dotenv/config";
-import express from "express";
+import express, { Request, Response, NextFunction } from "express";
 import cors from "cors";
 import helmet from "helmet";
 import authRoutes from "./routes/auth";
@@ -19,6 +20,18 @@ app.use("/api/auth", authRoutes);
 app.use("/api/vault", vaultRoutes);
 app.use("/api/folders", folderRoutes);
 app.use("/api/audit", auditRoutes);
+
+app.use((err: unknown, req: Request, res: Response, next: NextFunction) => {
+  console.error(err);
+
+  // Prisma unique constraint violation (e.g. duplicate email on register)
+  if (typeof err === "object" && err !== null && "code" in err && (err as any).code === "P2002") {
+    return res.status(409).json({ error: "A record with this value already exists" });
+  }
+
+  if (res.headersSent) return next(err);
+  res.status(500).json({ error: "Internal server error" });
+});
 
 const port = process.env.PORT || 4000;
 app.listen(port, () => {

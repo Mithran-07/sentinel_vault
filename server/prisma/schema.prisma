@@ -46,9 +46,6 @@ model Folder {
 
 enum VaultItemType {
   LOGIN
-  SECURE_NOTE
-  CARD
-  IDENTITY
 }
 
 model VaultItem {
@@ -64,6 +61,7 @@ model VaultItem {
   iv         String
   createdAt  DateTime      @default(now())
   updatedAt  DateTime      @updatedAt
+  passwordChangedAt DateTime @default(now())
 }
 
 model RefreshToken {

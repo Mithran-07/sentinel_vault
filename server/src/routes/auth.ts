@@ -5,6 +5,16 @@ import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from "../lib/jwt";
 import { recordAuditEvent } from "../lib/audit";
+import rateLimit from "express-rate-limit";
+
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 10, // 10 attempts per window per IP
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many attempts, please try again later" },
+  // TODO: Swap store for rate-limit-redis if running behind a load balancer with multiple instances
+});
 
 const router = Router();
 
@@ -65,7 +75,7 @@ router.post("/register", async (req, res) => {
 // before it can compute the authHash to send to /login. Mirrors Bitwarden's
 // /accounts/prelogin endpoint. Returns generic defaults for unknown emails
 // so this can't be used to enumerate accounts by response shape alone.
-router.get("/kdf", async (req, res) => {
+router.get("/kdf", authLimiter, async (req, res) => {
   const email = String(req.query.email || "");
   const user = email ? await prisma.user.findUnique({ where: { email } }) : null;
 
@@ -90,7 +100,7 @@ const loginSchema = z.object({
   authHash: z.string().min(20),
 });
 
-router.post("/login", async (req, res) => {
+router.post("/login", authLimiter, async (req, res) => {
   const parsed = loginSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: "Invalid input" });

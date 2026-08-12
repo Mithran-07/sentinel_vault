@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { useVault } from "@/context/VaultContext";
 import { api } from "@/lib/api";
 
 interface AuditEvent {
@@ -15,9 +17,17 @@ export default function AuditPage() {
   const [events, setEvents] = useState<AuditEvent[]>([]);
   const [chainValid, setChainValid] = useState<boolean | null>(null);
 
+  const router = useRouter();
+  const { vaultKey } = useVault();
+
   useEffect(() => {
+    if (!vaultKey) {
+      router.replace("/login");
+      return;
+    }
     void load();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vaultKey]);
 
   async function load() {
     const [eventsRes, verifyRes] = await Promise.all([api.get("/audit"), api.get("/audit/verify")]);

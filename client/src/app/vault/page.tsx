@@ -72,17 +72,25 @@ export default function VaultPage() {
   async function handleSave(data: ItemPayload) {
     if (!vaultKey) return;
     const blob = await encryptItem(data, vaultKey);
+    const passwordChanged = !editing || editing.data.password !== data.password;
+    const payload = {
+      ciphertext: blob.ciphertext,
+      iv: blob.iv,
+      type: "LOGIN",
+      ...(passwordChanged ? { passwordChangedAt: new Date().toISOString() } : {}),
+    };
     if (editing) {
-      await api.put(`/vault/items/${editing.id}`, { ciphertext: blob.ciphertext, iv: blob.iv, type: "LOGIN" });
+      await api.put(`/vault/items/${editing.id}`, payload);
     } else {
-      await api.post("/vault/items", { ciphertext: blob.ciphertext, iv: blob.iv, type: "LOGIN" });
+      await api.post("/vault/items", payload);
     }
     setModalOpen(false);
     setEditing(null);
     await loadItems();
   }
 
-  async function handleDelete(id: string) {
+  async function handleDelete(id: string, name: string) {
+    if (!window.confirm(`Delete "${name}"? This cannot be undone.`)) return;
     await api.del(`/vault/items/${id}`);
     await loadItems();
   }
@@ -97,6 +105,19 @@ export default function VaultPage() {
     navigator.clipboard.writeText(password);
     setCopiedId(id);
     setTimeout(() => setCopiedId(null), 2000);
+
+    // Clear clipboard after 30s, but only if it still contains what we copied
+    // (avoid clobbering something the user copied elsewhere in the meantime).
+    setTimeout(async () => {
+      try {
+        const current = await navigator.clipboard.readText();
+        if (current === password) {
+          await navigator.clipboard.writeText("");
+        }
+      } catch {
+        // Clipboard read permission may be denied in some browsers — fail silently, non-critical.
+      }
+    }, 30000);
   }
 
   const filtered = items.filter((i) => i.data.name.toLowerCase().includes(query.toLowerCase()));
@@ -237,7 +258,7 @@ export default function VaultPage() {
                       Edit
                     </button>
                     <button
-                      onClick={() => handleDelete(item.id)}
+                      onClick={() => handleDelete(item.id, item.data.name)}
                       className="px-3 py-1.5 rounded-md bg-background border border-border text-xs font-medium text-red-400 hover:text-red-300 hover:border-red-500/30 transition-colors"
                     >
                       Delete

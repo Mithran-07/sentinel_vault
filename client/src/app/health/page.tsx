@@ -14,6 +14,7 @@ interface VaultItemRecord {
   ciphertext: string;
   iv: string;
   updatedAt: string;
+  passwordChangedAt: string;
 }
 
 interface HealthItem {
@@ -67,7 +68,7 @@ export default function HealthPage() {
     const health: HealthItem[] = decrypted
       .filter(({ data }) => !!data.password)
       .map(({ record, data }) => {
-        const ageDays = (now - new Date(record.updatedAt).getTime()) / (1000 * 60 * 60 * 24);
+        const ageDays = (now - new Date(record.passwordChangedAt).getTime()) / (1000 * 60 * 60 * 24);
         return {
           id: record.id,
           name: data.name || "(untitled)",

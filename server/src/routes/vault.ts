@@ -8,11 +8,12 @@ const router = Router();
 router.use(requireAuth);
 
 const itemSchema = z.object({
-  type: z.enum(["LOGIN", "SECURE_NOTE", "CARD", "IDENTITY"]),
+  type: z.enum(["LOGIN"]),
   ciphertext: z.string().min(1),
   iv: z.string().min(1),
   folderId: z.string().uuid().nullable().optional(),
   favorite: z.boolean().optional(),
+  passwordChangedAt: z.string().datetime().optional(),
 });
 
 // List all items for the authenticated user. Client decrypts locally.
