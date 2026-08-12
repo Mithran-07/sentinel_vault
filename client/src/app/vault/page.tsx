@@ -31,6 +31,8 @@ export default function VaultPage() {
   const [editing, setEditing] = useState<DecryptedItem | null>(null);
   const [query, setQuery] = useState("");
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [clipboardCountdown, setClipboardCountdown] = useState<number | null>(null);
+  const [pendingClearId, setPendingClearId] = useState<string | null>(null);
   const [showOnboarding, setShowOnboarding] = useState(false);
 
   useEffect(() => {
@@ -104,21 +106,28 @@ export default function VaultPage() {
   function handleCopyPassword(id: string, password: string) {
     navigator.clipboard.writeText(password);
     setCopiedId(id);
-    setTimeout(() => setCopiedId(null), 2000);
-
-    // Clear clipboard after 30s, but only if it still contains what we copied
-    // (avoid clobbering something the user copied elsewhere in the meantime).
-    setTimeout(async () => {
-      try {
-        const current = await navigator.clipboard.readText();
-        if (current === password) {
-          await navigator.clipboard.writeText("");
-        }
-      } catch {
-        // Clipboard read permission may be denied in some browsers — fail silently, non-critical.
-      }
-    }, 30000);
+    setPendingClearId(null);
+    // Show "Copied!" briefly, then start the countdown
+    setTimeout(() => {
+      setCopiedId(null);
+      setPendingClearId(id);
+      setClipboardCountdown(30);
+    }, 1500);
   }
+
+  function handleManualClear() {
+    // This runs inside a real click handler — guaranteed to work in Safari.
+    navigator.clipboard.writeText("").catch(() => {});
+    setPendingClearId(null);
+    setClipboardCountdown(null);
+  }
+
+  // Countdown tick effect
+  useEffect(() => {
+    if (clipboardCountdown === null || clipboardCountdown <= 0) return;
+    const t = setTimeout(() => setClipboardCountdown((c) => (c !== null ? c - 1 : null)), 1000);
+    return () => clearTimeout(t);
+  }, [clipboardCountdown]);
 
   const filtered = items.filter((i) => i.data.name.toLowerCase().includes(query.toLowerCase()));
 
@@ -234,23 +243,43 @@ export default function VaultPage() {
                   </div>
                   
                   <div className="flex items-center gap-2 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                    <button
-                      onClick={() => handleCopyPassword(item.id, item.data.password)}
-                      className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-3 py-1.5 rounded-md bg-background border border-border text-xs font-medium text-foreground/80 hover:text-foreground hover:border-accent/50 transition-colors"
-                      title="Copy Password"
-                    >
-                      {copiedId === item.id ? (
-                        <>
-                          <svg className="w-3.5 h-3.5 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-                          <span className="text-accent">Copied</span>
-                        </>
-                      ) : (
-                        <>
-                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" /></svg>
-                          <span>Copy</span>
-                        </>
-                      )}
-                    </button>
+                    {pendingClearId === item.id ? (
+                      // Countdown / clear button — replaces Copy while clipboard holds the password
+                      <button
+                        onClick={handleManualClear}
+                        className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-3 py-1.5 rounded-md border text-xs font-medium transition-colors ${
+                          clipboardCountdown !== null && clipboardCountdown > 0
+                            ? "bg-amber-500/10 border-amber-500/30 text-amber-400 hover:bg-amber-500/20"
+                            : "bg-red-500/10 border-red-500/30 text-red-400 hover:bg-red-500/20 animate-pulse"
+                        }`}
+                        title="Click to clear clipboard now"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                        <span>
+                          {clipboardCountdown !== null && clipboardCountdown > 0
+                            ? `Clears in ${clipboardCountdown}s`
+                            : "Clear clipboard"}
+                        </span>
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => handleCopyPassword(item.id, item.data.password)}
+                        className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-3 py-1.5 rounded-md bg-background border border-border text-xs font-medium text-foreground/80 hover:text-foreground hover:border-accent/50 transition-colors"
+                        title="Copy Password"
+                      >
+                        {copiedId === item.id ? (
+                          <>
+                            <svg className="w-3.5 h-3.5 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                            <span className="text-accent">Copied!</span>
+                          </>
+                        ) : (
+                          <>
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" /></svg>
+                            <span>Copy</span>
+                          </>
+                        )}
+                      </button>
+                    )}
                     <button
                       onClick={() => { setEditing(item); setModalOpen(true); }}
                       className="px-3 py-1.5 rounded-md bg-background border border-border text-xs font-medium text-foreground/80 hover:text-foreground transition-colors"
