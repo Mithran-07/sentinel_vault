@@ -25,7 +25,7 @@ const registerRateLimiter = rateLimit({
 
 const authenticateRateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 50, // Higher ceiling for test suite & local dev
+  max: process.env.NODE_ENV === "production" ? 15 : 100,
   message: { error: "Too many passkey authentication attempts. Try again in 15 minutes." },
 });
 
@@ -165,6 +165,14 @@ router.post("/authenticate/begin", authenticateRateLimiter, async (req, res) => 
   }
 
   const { options, challengeId } = await createPasskeyAuthenticationOptions(userPasskeys);
+  
+  if (email) {
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (user) {
+      await recordAuditEvent(user.id, "PASSKEY_AUTHENTICATION_STARTED", { challengeId });
+    }
+  }
+
   res.json({ options, challengeId });
 });
 

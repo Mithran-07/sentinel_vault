@@ -71,7 +71,9 @@ class ChallengeManager {
 
     // Fallback storage
     memoryFallbackMap.set(`passkey:challenge:${challengeId}`, record);
-    setTimeout(() => memoryFallbackMap.delete(`passkey:challenge:${challengeId}`), ttlSeconds * 1000);
+    if (ttlSeconds > 0) {
+      setTimeout(() => memoryFallbackMap.delete(`passkey:challenge:${challengeId}`), ttlSeconds * 1000);
+    }
 
     return { challenge, challengeId };
   }
