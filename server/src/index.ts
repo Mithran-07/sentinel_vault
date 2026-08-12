@@ -5,6 +5,7 @@ import cors from "cors";
 import helmet from "helmet";
 import cookieParser from "cookie-parser";
 import authRoutes from "./routes/auth";
+import sessionRoutes from "./routes/sessions";
 import vaultRoutes from "./routes/vault";
 import folderRoutes from "./routes/folders";
 import auditRoutes from "./routes/audit";
@@ -26,6 +27,7 @@ app.use(express.json({ limit: "1mb" }));
 app.get("/health", (_req, res) => res.json({ ok: true }));
 
 app.use("/api/auth", authRoutes);
+app.use("/api/auth/sessions", sessionRoutes);
 app.use("/api/vault", vaultRoutes);
 app.use("/api/vault/items/:itemId/attachments", attachmentRoutes);
 app.use("/api/folders", folderRoutes);
