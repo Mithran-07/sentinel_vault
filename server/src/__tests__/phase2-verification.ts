@@ -26,7 +26,8 @@ async function runTest() {
     }),
   });
   if (!regRes.ok) throw new Error(`Register failed: ${await regRes.text()}`);
-  const { accessToken } = await regRes.json();
+  const regData = (await regRes.json()) as { accessToken: string };
+  const accessToken = regData.accessToken;
   console.log("   ✅ Registered successfully");
 
   const headers = {
@@ -50,9 +51,9 @@ async function runTest() {
       }),
     });
     if (!res.ok) throw new Error(`Failed to create item of type ${type}: ${await res.text()}`);
-    const item = await res.json();
+    const item = (await res.json()) as { id: string; type: string };
     createdIds.push(item.id);
-    console.log(`   ✅ Created ${type} item (ID: ${item.id})`);
+    console.log(`   ✅ Created ${item.type} item (ID: ${item.id})`);
   }
 
   // 3. Update Item (verify version snapshot)
@@ -69,7 +70,7 @@ async function runTest() {
   if (!updateRes.ok) throw new Error(`Update failed: ${await updateRes.text()}`);
 
   const versionsRes = await fetch(`${API_BASE}/vault/items/${targetId}/versions`, { headers });
-  const versions = await versionsRes.json();
+  const versions = (await versionsRes.json()) as unknown[];
   if (versions.length !== 1) throw new Error(`Expected 1 version snapshot, got ${versions.length}`);
   console.log(`   ✅ Version snapshot created: previous ciphertext retained correctly`);
 
@@ -80,8 +81,8 @@ async function runTest() {
     headers,
     body: JSON.stringify({ name: "Work", color: "#3b82f6" }),
   });
-  const tag = await tagRes.json();
-  console.log(`   ✅ Created Tag "Work" (${tag.id})`);
+  const tag = (await tagRes.json()) as { id: string; name: string };
+  console.log(`   ✅ Created Tag "${tag.name}" (${tag.id})`);
 
   const attachTagRes = await fetch(`${API_BASE}/tags/items/${targetId}/tags/${tag.id}`, {
     method: "POST",
@@ -100,14 +101,14 @@ async function runTest() {
   if (delRes.status !== 204) throw new Error(`Soft delete failed with status ${delRes.status}`);
 
   const activeItemsRes = await fetch(`${API_BASE}/vault/items`, { headers });
-  const activeItems = await activeItemsRes.json();
-  if (activeItems.some((i: any) => i.id === trashItem)) {
+  const activeItems = (await activeItemsRes.json()) as Array<{ id: string }>;
+  if (activeItems.some((i) => i.id === trashItem)) {
     throw new Error("Item still present in active items view!");
   }
 
   const trashedItemsRes = await fetch(`${API_BASE}/vault/items?deleted=true`, { headers });
-  const trashedItems = await trashedItemsRes.json();
-  if (!trashedItems.some((i: any) => i.id === trashItem)) {
+  const trashedItems = (await trashedItemsRes.json()) as Array<{ id: string }>;
+  if (!trashedItems.some((i) => i.id === trashItem)) {
     throw new Error("Item missing from trash items view!");
   }
   console.log("   ✅ Item soft-deleted and present in trash query");
@@ -131,8 +132,8 @@ async function runTest() {
   if (permRes.status !== 204) throw new Error(`Permanent delete failed with status ${permRes.status}`);
 
   const checkTrashRes = await fetch(`${API_BASE}/vault/items?deleted=true`, { headers });
-  const checkTrash = await checkTrashRes.json();
-  if (checkTrash.some((i: any) => i.id === trashItem)) {
+  const checkTrash = (await checkTrashRes.json()) as Array<{ id: string }>;
+  if (checkTrash.some((i) => i.id === trashItem)) {
     throw new Error("Item still present after permanent delete!");
   }
   console.log("   ✅ Item permanently deleted from database");
@@ -155,7 +156,7 @@ async function runTest() {
     body: formData,
   });
   if (!uploadRes.ok) throw new Error(`Attachment upload failed: ${await uploadRes.text()}`);
-  const attachment = await uploadRes.json();
+  const attachment = (await uploadRes.json()) as { id: string; ciphertextSizeBytes: number };
   console.log(`   ✅ Attachment uploaded (ID: ${attachment.id}, size: ${attachment.ciphertextSizeBytes} bytes)`);
 
   const downloadRes = await fetch(`${API_BASE}/vault/items/${targetId}/attachments/${attachment.id}`, {
