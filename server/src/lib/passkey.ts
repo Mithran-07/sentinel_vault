@@ -26,7 +26,7 @@ export async function createPasskeyRegistrationOptions(userId: string, email: st
       transports: ["internal", "hybrid", "usb", "ble", "nfc"],
     })),
     authenticatorSelection: {
-      userVerification: "preferred",
+      userVerification: "required", // Mandatory PIN/Biometric verification per enterprise vault security policy
       residentKey: "preferred",
     },
     attestationType: "none",
@@ -55,6 +55,7 @@ export async function verifyPasskeyRegistration(
     expectedChallenge: stored.challenge,
     expectedOrigin: EXPECTED_ORIGIN,
     expectedRPID: RP_ID,
+    requireUserVerification: true, // Enforce UV verification check in server attestation payload
   });
 
   return verification;
@@ -72,7 +73,7 @@ export async function createPasskeyAuthenticationOptions(userPasskeys?: Array<{ 
           transports: p.transports ? JSON.parse(p.transports) : undefined,
         }))
       : undefined,
-    userVerification: "preferred",
+    userVerification: "required", // Mandatory PIN/Biometric verification per enterprise vault security policy
   });
 
   return { options, challengeId };
@@ -103,6 +104,7 @@ export async function verifyPasskeyAuthentication(
       publicKey: Buffer.from(userPasskey.publicKey, "base64url"),
       counter: userPasskey.signCount,
     },
+    requireUserVerification: true, // Enforce UV verification check in server assertion payload
   });
 
   return verification;
