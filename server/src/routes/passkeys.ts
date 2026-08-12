@@ -13,6 +13,7 @@ import {
 } from "../lib/passkey";
 import { signAccessToken, signRefreshToken } from "../lib/jwt";
 import { recordAuditEvent } from "../lib/audit";
+import { parseDeviceType, generateDeviceFingerprint, evaluateSuspiciousDevice } from "../lib/device";
 
 const router = Router();
 
@@ -231,6 +232,10 @@ router.post("/authenticate/complete", authenticateRateLimiter, async (req, res) 
     // Create Session & tokens (integrating with Phase 3.2 Session architecture)
     const userAgentStr = req.headers["user-agent"];
     const { browser, os } = parseDevice(userAgentStr);
+    const deviceType = parseDeviceType(userAgentStr);
+    const deviceFingerprint = generateDeviceFingerprint(passkey.userId, userAgentStr);
+    const isSuspicious = await evaluateSuspiciousDevice(passkey.userId, browser, os, deviceFingerprint);
+
     const session = await prisma.session.create({
       data: {
         userId: passkey.userId,
@@ -240,9 +245,33 @@ router.post("/authenticate/complete", authenticateRateLimiter, async (req, res) 
         userAgent: userAgentStr,
         browser,
         os,
+        deviceType,
+        deviceFingerprint,
+        isSuspicious,
         expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
       },
     });
+
+    await recordAuditEvent(passkey.userId, "DEVICE_SESSION_CREATED", {
+      sessionId: session.id,
+      browser,
+      os,
+      deviceType,
+      ip: req.ip,
+      isSuspicious,
+      authMethod: "passkey",
+    });
+
+    if (isSuspicious) {
+      await recordAuditEvent(passkey.userId, "SUSPICIOUS_DEVICE_DETECTED", {
+        sessionId: session.id,
+        browser,
+        os,
+        deviceType,
+        ip: req.ip,
+        reason: "new_unrecognized_device",
+      });
+    }
 
     const accessToken = signAccessToken({ sub: passkey.userId, sessionId: session.id, email: passkey.user.email });
     const refreshToken = signRefreshToken(passkey.userId, session.id, session.tokenFamily);

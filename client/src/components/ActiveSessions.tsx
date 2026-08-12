@@ -7,6 +7,8 @@ export interface SessionRecord {
   id: string;
   browser: string;
   os: string;
+  deviceType?: string;
+  isSuspicious?: boolean;
   ipAddress: string;
   createdAt: string;
   lastActiveAt: string;
@@ -61,16 +63,26 @@ export function ActiveSessions() {
   }
 
   async function handleLogoutAllOthers() {
-    if (!window.confirm("Log out all other active sessions? All other devices will be disconnected.")) return;
+    const otherCount = sessions.filter((s) => !s.isCurrent).length;
+    if (!window.confirm(`Disconnect ${otherCount} other device(s)? All other active sessions will be logged out.`)) return;
 
     try {
-      const res = await api.post("/auth/logout-all");
+      const res = await api.post("/auth/sessions/revoke-others");
       if (res.ok) {
         await loadSessions();
       }
     } catch {
       // Ignore
     }
+  }
+
+  function getDeviceIcon(type?: string, osStr?: string) {
+    if (type === "mobile") return "📱";
+    if (type === "tablet") return "📟";
+    const lowerOs = (osStr || "").toLowerCase();
+    if (lowerOs.includes("mac") || lowerOs.includes("darwin")) return "💻";
+    if (lowerOs.includes("win")) return "🖥️";
+    return "💻";
   }
 
   return (
@@ -87,7 +99,7 @@ export function ActiveSessions() {
             onClick={handleLogoutAllOthers}
             className="flex-shrink-0 px-3 py-1.5 rounded-lg border border-red-500/30 bg-red-500/10 text-xs font-medium text-red-400 hover:bg-red-500/20 transition-colors"
           >
-            Logout All Other Sessions
+            Logout All Other Devices
           </button>
         )}
       </div>
@@ -106,20 +118,27 @@ export function ActiveSessions() {
               className={`flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-xl border transition-all ${
                 s.isCurrent
                   ? "border-accent/40 bg-accent/5 shadow-sm"
+                  : s.isSuspicious
+                  ? "border-amber-500/40 bg-amber-500/5 shadow-sm"
                   : "border-border bg-surface"
               }`}
             >
               <div className="flex items-center gap-4 mb-3 sm:mb-0">
                 <div className="w-10 h-10 rounded-lg bg-background border border-border flex items-center justify-center text-lg shrink-0">
-                  {s.os.toLowerCase().includes("mac") || s.os.toLowerCase().includes("darwin") ? "💻" : s.os.toLowerCase().includes("win") ? "🖥️" : "📱"}
+                  {getDeviceIcon(s.deviceType, s.os)}
                 </div>
                 <div className="min-w-0">
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <span className="font-medium text-foreground text-sm">{s.browser}</span>
                     <span className="text-xs text-foreground/50">on {s.os}</span>
                     {s.isCurrent && (
                       <span className="px-2 py-0.5 rounded-full bg-accent text-white text-[10px] font-semibold tracking-wide uppercase">
                         This Device
+                      </span>
+                    )}
+                    {s.isSuspicious && (
+                      <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30 text-[10px] font-semibold tracking-wide uppercase">
+                        Unrecognized Device
                       </span>
                     )}
                   </div>

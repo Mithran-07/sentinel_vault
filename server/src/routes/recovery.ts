@@ -7,6 +7,7 @@ import { prisma } from "../lib/prisma";
 import { requireAuth, AuthedRequest } from "../middleware/auth";
 import { verifyAccessToken, signAccessToken, signRefreshToken } from "../lib/jwt";
 import { recordAuditEvent } from "../lib/audit";
+import { parseDeviceType, generateDeviceFingerprint, evaluateSuspiciousDevice } from "../lib/device";
 import {
   generateRecoveryCodeBatch,
   hashRecoveryCode,
@@ -179,9 +180,14 @@ router.post("/verify", recoveryIpRateLimiter, async (req, res) => {
     }
 
     // 5. Atomic single-use consumption & Session Creation in Prisma $transaction
-    const parser = new UAParser(req.headers["user-agent"]);
+    const userAgentStr = req.headers["user-agent"];
+    const parser = new UAParser(userAgentStr);
     const browser = `${parser.getBrowser().name || "Unknown"} ${parser.getBrowser().version || ""}`.trim();
     const os = `${parser.getOS().name || "Unknown"} ${parser.getOS().version || ""}`.trim();
+    const deviceType = parseDeviceType(userAgentStr);
+    const deviceFingerprint = generateDeviceFingerprint(userId, userAgentStr);
+    const isSuspicious = await evaluateSuspiciousDevice(userId, browser, os, deviceFingerprint);
+
     const ipAddress = req.ip || req.socket.remoteAddress || "127.0.0.1";
     const tokenFamily = crypto.randomBytes(16).toString("hex");
     const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
@@ -211,8 +217,12 @@ router.post("/verify", recoveryIpRateLimiter, async (req, res) => {
           userId,
           tokenFamily,
           lastTokenHash: "initial_recovery",
+          userAgent: userAgentStr,
           browser,
           os,
+          deviceType,
+          deviceFingerprint,
+          isSuspicious,
           ipAddress,
           expiresAt,
         },
@@ -220,6 +230,27 @@ router.post("/verify", recoveryIpRateLimiter, async (req, res) => {
 
       return newSession;
     });
+
+    await recordAuditEvent(userId, "DEVICE_SESSION_CREATED", {
+      sessionId: session.id,
+      browser,
+      os,
+      deviceType,
+      ip: ipAddress,
+      isSuspicious,
+      authMethod: "recovery_code",
+    });
+
+    if (isSuspicious) {
+      await recordAuditEvent(userId, "SUSPICIOUS_DEVICE_DETECTED", {
+        sessionId: session.id,
+        browser,
+        os,
+        deviceType,
+        ip: ipAddress,
+        reason: "new_unrecognized_device",
+      });
+    }
 
     // Issue tokens
     const accessToken = signAccessToken({ sub: user.id, sessionId: session.id });

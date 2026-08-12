@@ -6,6 +6,7 @@ import { UAParser } from "ua-parser-js";
 import { prisma } from "../lib/prisma";
 import { signAccessToken, signRefreshToken, verifyRefreshToken, signMfaChallengeToken } from "../lib/jwt";
 import { recordAuditEvent } from "../lib/audit";
+import { parseDeviceType, generateDeviceFingerprint, evaluateSuspiciousDevice } from "../lib/device";
 import rateLimit from "express-rate-limit";
 import { requireAuth, AuthedRequest } from "../middleware/auth";
 
@@ -14,6 +15,7 @@ const authLimiter = rateLimit({
   max: 20, // 20 attempts per 15 min
   standardHeaders: true,
   legacyHeaders: false,
+  skip: () => process.env.NODE_ENV === "test",
   message: { error: "Too many authentication attempts, please try again later" },
 });
 
@@ -222,6 +224,10 @@ router.post("/login", authLimiter, async (req, res) => {
   // Create new Session (MFA not enabled)
   const userAgentStr = req.headers["user-agent"];
   const { browser, os } = parseDevice(userAgentStr);
+  const deviceType = parseDeviceType(userAgentStr);
+  const deviceFingerprint = generateDeviceFingerprint(user.id, userAgentStr);
+  const isSuspicious = await evaluateSuspiciousDevice(user.id, browser, os, deviceFingerprint);
+
   const session = await prisma.session.create({
     data: {
       userId: user.id,
@@ -231,6 +237,9 @@ router.post("/login", authLimiter, async (req, res) => {
       userAgent: userAgentStr,
       browser,
       os,
+      deviceType,
+      deviceFingerprint,
+      isSuspicious,
       expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
     },
   });
@@ -254,6 +263,25 @@ router.post("/login", authLimiter, async (req, res) => {
   });
 
   await recordAuditEvent(user.id, "SESSION_CREATED", { sessionId: session.id, ip: req.ip });
+  await recordAuditEvent(user.id, "DEVICE_SESSION_CREATED", {
+    sessionId: session.id,
+    browser,
+    os,
+    deviceType,
+    ip: req.ip,
+    isSuspicious,
+  });
+
+  if (isSuspicious) {
+    await recordAuditEvent(user.id, "SUSPICIOUS_DEVICE_DETECTED", {
+      sessionId: session.id,
+      browser,
+      os,
+      deviceType,
+      ip: req.ip,
+      reason: "new_unrecognized_device",
+    });
+  }
 
   setRefreshCookie(res, refreshToken);
   res.json({

@@ -372,7 +372,7 @@ async function runPhase35PasskeyTests() {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email: emailUser1, authHash }),
   });
-  if (!pwdLoginRes.ok) throw new Error("Password authentication regressed!");
+  if (!pwdLoginRes.ok) throw new Error(`Password authentication regressed! Status: ${pwdLoginRes.status}, Body: ${await pwdLoginRes.text()}`);
   console.log("   ✅ Password login regression check PASSED");
 
   // ── 27. TOTP MFA Regression Test ────────────────────────────────────────────

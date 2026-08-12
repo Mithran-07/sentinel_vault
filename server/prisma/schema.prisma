@@ -53,6 +53,8 @@ model Session {
   userAgent         String?
   browser           String?
   os                String?
+  deviceType        String?   @default("desktop")
+  isSuspicious      Boolean   @default(false)
   createdAt         DateTime  @default(now())
   lastActiveAt      DateTime  @default(now())
   expiresAt         DateTime
