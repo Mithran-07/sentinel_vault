@@ -155,3 +155,27 @@ function concatBytes(a: Uint8Array, b: Uint8Array): Uint8Array {
   out.set(b, a.length);
   return out;
 }
+
+/**
+ * Encrypts a File (or Blob) client-side using AES-256-GCM before upload.
+ * The server receives only opaque ciphertext — filename and MIME type must
+ * also be encrypted separately and sent as metadata fields.
+ */
+export async function encryptFile(file: File, vaultKey: Uint8Array): Promise<{ encryptedBytes: Uint8Array; iv: string }> {
+  const plaintext = new Uint8Array(await file.arrayBuffer());
+  const blob = await aesGcmEncrypt(plaintext, vaultKey);
+  return { encryptedBytes: base64ToBytes(blob.ciphertext), iv: blob.iv };
+}
+
+/**
+ * Decrypts encrypted file bytes received from the server.
+ * Returns a Blob that can be passed to URL.createObjectURL() for download.
+ */
+export async function decryptFile(encryptedBytes: Uint8Array, iv: string, vaultKey: Uint8Array, mimeType: string): Promise<Blob> {
+  const blob: EncryptedBlob = { ciphertext: bytesToBase64(encryptedBytes), iv };
+  const plaintext = await aesGcmDecrypt(blob, vaultKey);
+  return new Blob([toArrayBuffer(plaintext)], { type: mimeType });
+}
+
+// Re-export encoding helpers for use in attachment UI components.
+export { bytesToBase64, base64ToBytes };

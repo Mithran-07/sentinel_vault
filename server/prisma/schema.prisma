@@ -19,49 +19,118 @@ model User {
   // KDF parameters used client-side to derive the Master Key from the master password.
   kdfSalt            String
   kdfMemoryKb        Int      @default(65536)
-  kdfIterations       Int      @default(3)
+  kdfIterations      Int      @default(3)
   kdfParallelism     Int      @default(4)
   // The Vault Key, randomly generated client-side, encrypted under the Master Key (AES-256-GCM). Opaque blob.
   encryptedVaultKeyCiphertext String
   encryptedVaultKeyIv         String
   createdAt          DateTime @default(now())
 
-  folders      Folder[]
-  vaultItems   VaultItem[]
+  folders       Folder[]
+  vaultItems    VaultItem[]
   refreshTokens RefreshToken[]
-  auditEvents  AuditEvent[]
+  auditEvents   AuditEvent[]
+  tags          Tag[]
 }
 
 model Folder {
-  id        String   @id @default(uuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  // Folder name is itself encrypted client-side (AES-256-GCM) — server never sees plaintext folder names.
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Folder name is encrypted client-side (AES-256-GCM) — server never sees plaintext folder names.
   nameCiphertext String
   nameIv         String
-  createdAt DateTime @default(now())
+  createdAt      DateTime @default(now())
 
   vaultItems VaultItem[]
 }
 
+// All 6 enterprise vault item types. The type field is stored unencrypted for
+// server-side filtering. The actual content (passwords, keys, card numbers, etc.)
+// is inside the ciphertext blob and never visible to the server.
 enum VaultItemType {
   LOGIN
+  SECURE_NOTE
+  CARD
+  IDENTITY
+  SSH_KEY
+  API_CREDENTIAL
 }
 
 model VaultItem {
-  id         String        @id @default(uuid())
-  userId     String
-  user       User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  folderId   String?
-  folder     Folder?       @relation(fields: [folderId], references: [id], onDelete: SetNull)
-  type       VaultItemType
-  favorite   Boolean       @default(false)
+  id                String        @id @default(uuid())
+  userId            String
+  user              User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  folderId          String?
+  folder            Folder?       @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  type              VaultItemType
+  favorite          Boolean       @default(false)
   // Entire item payload (name, username, password, notes, TOTP seed, etc.) is one AES-256-GCM ciphertext blob.
-  ciphertext String
-  iv         String
-  createdAt  DateTime      @default(now())
-  updatedAt  DateTime      @updatedAt
-  passwordChangedAt DateTime @default(now())
+  ciphertext        String
+  iv                String
+  // Soft delete — null = active, non-null = in trash.
+  deletedAt         DateTime?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  // Tracks when the password field was last changed (client signals this — server never reads it).
+  passwordChangedAt DateTime      @default(now())
+
+  versions    VaultItemVersion[]
+  attachments Attachment[]
+  tags        ItemTag[]
+}
+
+// Auto-snapshot of previous ciphertext before each update.
+// Enables version history / rollback without server seeing plaintext.
+model VaultItemVersion {
+  id              String    @id @default(uuid())
+  itemId          String
+  item            VaultItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  // Snapshot of the ciphertext at the time of the update.
+  ciphertext      String
+  iv              String
+  createdAt       DateTime  @default(now())
+}
+
+// Tags are plaintext metadata (not secrets). They are used for client-side
+// filtering and organisation — no sensitive data is in a tag name.
+model Tag {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  color     String   @default("#10b981")
+  createdAt DateTime @default(now())
+
+  items     ItemTag[]
+
+  @@unique([userId, name])
+}
+
+model ItemTag {
+  itemId String
+  tagId  String
+  item   VaultItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  tag    Tag       @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([itemId, tagId])
+}
+
+// Encrypted file attachments. The file bytes are encrypted client-side with
+// AES-256-GCM before upload. The server stores and serves opaque ciphertext only.
+// Filename and MIME type are also encrypted — storageKey is a random UUID path.
+model Attachment {
+  id                   String    @id @default(uuid())
+  itemId               String
+  item                 VaultItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  // Opaque storage path (UUID-based) — no semantic information visible to server.
+  storageKey           String    @unique
+  ciphertextSizeBytes  Int
+  iv                   String
+  // Encrypted filename and MIME type — server never sees original name or type.
+  filenameCiphertext   String
+  filenameIv           String
+  createdAt            DateTime  @default(now())
 }
 
 model RefreshToken {
@@ -74,7 +143,7 @@ model RefreshToken {
   createdAt DateTime @default(now())
 }
 
-// Tamper-resistant audit log — hash-chained per doc section 5.E.
+// Tamper-resistant audit log — hash-chained per docs/02-cryptographic-architecture.md §7.
 // Uses an autoincrement sequence (not createdAt) to reconstruct true commit
 // order — Postgres timestamps from DEFAULT now() don't reliably preserve
 // ordering under tight concurrent commits, even with advisory locks.

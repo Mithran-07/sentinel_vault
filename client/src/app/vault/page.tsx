@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useVault } from "@/context/VaultContext";
 import { encryptItem, decryptItem } from "@/lib/crypto";
 import { api, clearTokens } from "@/lib/api";
-import { ItemModal, ItemPayload } from "@/components/ItemModal";
+import { ItemModal, ItemPayload, ItemType, TYPE_LABELS, TYPE_ICONS } from "@/components/ItemModal";
 import { OnboardingModal } from "@/components/OnboardingModal";
 
 interface VaultItemRecord {
@@ -30,6 +30,7 @@ export default function VaultPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<DecryptedItem | null>(null);
   const [query, setQuery] = useState("");
+  const [typeFilter, setTypeFilter] = useState<ItemType | "ALL">("ALL");
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [clipboardCountdown, setClipboardCountdown] = useState<number | null>(null);
   const [pendingClearId, setPendingClearId] = useState<string | null>(null);
@@ -74,12 +75,13 @@ export default function VaultPage() {
   async function handleSave(data: ItemPayload) {
     if (!vaultKey) return;
     const blob = await encryptItem(data, vaultKey);
-    const passwordChanged = !editing || editing.data.password !== data.password;
+    const d = data as Record<string, unknown>;
+    const passwordChanged = !editing || (d.password !== undefined && (editing.data as Record<string, unknown>).password !== d.password);
     const payload = {
       ciphertext: blob.ciphertext,
       iv: blob.iv,
-      type: "LOGIN",
-      ...(passwordChanged ? { passwordChangedAt: new Date().toISOString() } : {}),
+      type: data.type,
+      ...(passwordChanged && d.password !== undefined ? { passwordChangedAt: new Date().toISOString() } : {}),
     };
     if (editing) {
       await api.put(`/vault/items/${editing.id}`, payload);
@@ -92,7 +94,7 @@ export default function VaultPage() {
   }
 
   async function handleDelete(id: string, name: string) {
-    if (!window.confirm(`Delete "${name}"? This cannot be undone.`)) return;
+    if (!window.confirm(`Move "${name}" to trash?`)) return;
     await api.del(`/vault/items/${id}`);
     await loadItems();
   }
@@ -129,7 +131,25 @@ export default function VaultPage() {
     return () => clearTimeout(t);
   }, [clipboardCountdown]);
 
-  const filtered = items.filter((i) => i.data.name.toLowerCase().includes(query.toLowerCase()));
+  const filtered = items.filter((i) => {
+    const matchesQuery = i.data.name.toLowerCase().includes(query.toLowerCase());
+    const matchesType = typeFilter === "ALL" || i.data.type === typeFilter;
+    return matchesQuery && matchesType;
+  });
+
+  // Helper: get a secondary info line per item type
+  function secondaryInfo(data: ItemPayload): string {
+    const d = data as Record<string, unknown>;
+    switch (data.type) {
+      case "LOGIN":          return String(d.username ?? "");
+      case "SECURE_NOTE":    return "Encrypted note";
+      case "CARD":           return d.number ? `•••• ${String(d.number).slice(-4)}` : "Card";
+      case "IDENTITY":       return [d.firstName, d.lastName].filter(Boolean).join(" ");
+      case "SSH_KEY":        return String(d.publicKey ?? "").slice(0, 40) || "SSH Key";
+      case "API_CREDENTIAL": return String(d.endpoint ?? "") || "API Credential";
+      default:               return "";
+    }
+  }
 
   return (
     <div className="min-h-screen bg-background flex flex-col md:flex-row">
@@ -151,6 +171,10 @@ export default function VaultPage() {
           <Link href="/vault" className="flex items-center gap-3 px-3 py-2 rounded-lg bg-accent/10 text-accent font-medium transition-colors">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" /></svg>
             All Items
+          </Link>
+          <Link href="/trash" className="flex items-center gap-3 px-3 py-2 rounded-lg text-foreground/70 hover:bg-surfaceHover hover:text-foreground transition-colors">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+            Trash
           </Link>
           <Link href="/health" className="flex items-center gap-3 px-3 py-2 rounded-lg text-foreground/70 hover:bg-surfaceHover hover:text-foreground transition-colors">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
@@ -176,28 +200,43 @@ export default function VaultPage() {
 
       {/* Main Content Workspace */}
       <main className="flex-1 flex flex-col min-w-0">
-        <header className="px-8 py-6 border-b border-border/50 flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between bg-surface/50 sticky top-0 z-10 backdrop-blur-md">
-          <h1 className="text-2xl font-bold tracking-tight">All Items</h1>
-          <div className="flex w-full sm:w-auto items-center gap-3">
-            <div className="relative flex-1 sm:w-64">
-              <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-foreground/40" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-              <input
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search vault..."
-                className="w-full pl-9 pr-4 py-2 bg-background border border-border rounded-lg text-sm text-foreground outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-all"
-              />
+        <header className="px-8 py-6 border-b border-border/50 flex flex-col gap-4 bg-surface/50 sticky top-0 z-10 backdrop-blur-md">
+          <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+            <h1 className="text-2xl font-bold tracking-tight">All Items</h1>
+            <div className="flex w-full sm:w-auto items-center gap-3">
+              <div className="relative flex-1 sm:w-64">
+                <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-foreground/40" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                <input
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Search vault..."
+                  className="w-full pl-9 pr-4 py-2 bg-background border border-border rounded-lg text-sm text-foreground outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-all"
+                />
+              </div>
+              <button
+                onClick={() => { setEditing(null); setModalOpen(true); }}
+                className="flex-shrink-0 bg-accent hover:bg-accent-hover text-white px-4 py-2 rounded-lg font-medium text-sm transition-colors shadow-sm flex items-center gap-2"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                New Item
+              </button>
             </div>
-            <button
-              onClick={() => {
-                setEditing(null);
-                setModalOpen(true);
-              }}
-              className="flex-shrink-0 bg-accent hover:bg-accent-hover text-white px-4 py-2 rounded-lg font-medium text-sm transition-colors shadow-sm flex items-center gap-2"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-              New Item
-            </button>
+          </div>
+          {/* Type filter tabs */}
+          <div className="flex gap-1.5 overflow-x-auto pb-1">
+            {(["ALL", "LOGIN", "SECURE_NOTE", "CARD", "IDENTITY", "SSH_KEY", "API_CREDENTIAL"] as const).map((t) => (
+              <button
+                key={t}
+                onClick={() => setTypeFilter(t)}
+                className={`flex-shrink-0 px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                  typeFilter === t
+                    ? "bg-accent text-white"
+                    : "bg-background border border-border text-foreground/60 hover:text-foreground"
+                }`}
+              >
+                {t === "ALL" ? "All" : `${TYPE_ICONS[t]} ${TYPE_LABELS[t]}`}
+              </button>
+            ))}
           </div>
         </header>
 
@@ -233,12 +272,17 @@ export default function VaultPage() {
                   className="group flex flex-col sm:flex-row sm:items-center justify-between rounded-xl border border-border bg-surface hover:border-border/80 hover:bg-surfaceHover transition-all p-4"
                 >
                   <div className="flex items-center gap-4 mb-4 sm:mb-0">
-                    <div className="w-10 h-10 rounded-lg bg-background border border-border flex items-center justify-center text-foreground/40 font-bold uppercase shrink-0">
-                      {item.data.name.charAt(0)}
+                    <div className="w-10 h-10 rounded-lg bg-background border border-border flex items-center justify-center text-lg shrink-0">
+                      {TYPE_ICONS[item.data.type as ItemType] ?? item.data.name.charAt(0)}
                     </div>
                     <div className="min-w-0">
-                      <p className="font-medium text-foreground truncate">{item.data.name}</p>
-                      <p className="text-sm text-foreground/60 truncate">{item.data.username}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium text-foreground truncate">{item.data.name}</p>
+                        <span className="hidden sm:inline-flex flex-shrink-0 text-xs px-1.5 py-0.5 rounded bg-accent/10 text-accent/80 font-medium">
+                          {TYPE_LABELS[item.data.type as ItemType] ?? item.data.type}
+                        </span>
+                      </div>
+                      <p className="text-sm text-foreground/60 truncate">{secondaryInfo(item.data)}</p>
                     </div>
                   </div>
                   
@@ -263,7 +307,7 @@ export default function VaultPage() {
                       </button>
                     ) : (
                       <button
-                        onClick={() => handleCopyPassword(item.id, item.data.password)}
+                        onClick={() => handleCopyPassword(item.id, (item.data as Record<string, unknown>).password as string)}
                         className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-3 py-1.5 rounded-md bg-background border border-border text-xs font-medium text-foreground/80 hover:text-foreground hover:border-accent/50 transition-colors"
                         title="Copy Password"
                       >

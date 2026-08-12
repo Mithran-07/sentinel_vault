@@ -58,14 +58,18 @@ export default function HealthPage() {
       }))
     );
 
+    const logins = decrypted.filter(
+      (item): item is { record: VaultItemRecord; data: Extract<ItemPayload, { type: "LOGIN" }> } => item.data.type === "LOGIN"
+    );
+
     const passwordCounts = new Map<string, number>();
-    for (const { data } of decrypted) {
+    for (const { data } of logins) {
       if (!data.password) continue;
       passwordCounts.set(data.password, (passwordCounts.get(data.password) ?? 0) + 1);
     }
 
     const now = Date.now();
-    const health: HealthItem[] = decrypted
+    const health: HealthItem[] = logins
       .filter(({ data }) => !!data.password)
       .map(({ record, data }) => {
         const ageDays = (now - new Date(record.passwordChangedAt).getTime()) / (1000 * 60 * 60 * 24);

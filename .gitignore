@@ -6,3 +6,5 @@ build/
 .next/
 coverage/
 *.log
+uploads/
+*.tsbuildinfo

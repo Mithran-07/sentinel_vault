@@ -7,6 +7,8 @@ import authRoutes from "./routes/auth";
 import vaultRoutes from "./routes/vault";
 import folderRoutes from "./routes/folders";
 import auditRoutes from "./routes/audit";
+import tagRoutes from "./routes/tags";
+import attachmentRoutes from "./routes/attachments";
 
 const app = express();
 
@@ -18,7 +20,9 @@ app.get("/health", (_req, res) => res.json({ ok: true }));
 
 app.use("/api/auth", authRoutes);
 app.use("/api/vault", vaultRoutes);
+app.use("/api/vault/items/:itemId/attachments", attachmentRoutes);
 app.use("/api/folders", folderRoutes);
+app.use("/api/tags", tagRoutes);
 app.use("/api/audit", auditRoutes);
 
 app.use((err: unknown, req: Request, res: Response, next: NextFunction) => {
