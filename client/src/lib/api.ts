@@ -18,6 +18,7 @@ async function request(path: string, options: RequestInit = {}, retry = true): P
   const token = getAccessToken();
   const res = await fetch(`${API_BASE}${path}`, {
     ...options,
+    credentials: "include",
     headers: {
       "Content-Type": "application/json",
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -34,21 +35,25 @@ async function request(path: string, options: RequestInit = {}, retry = true): P
 
 async function tryRefresh(): Promise<boolean> {
   const refreshToken = typeof window !== "undefined" ? localStorage.getItem("refreshToken") : null;
-  if (!refreshToken) return false;
   const res = await fetch(`${API_BASE}/auth/refresh`, {
     method: "POST",
+    credentials: "include",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ refreshToken }),
   });
   if (!res.ok) return false;
   const data = await res.json();
-  sessionStorage.setItem("accessToken", data.accessToken);
-  return true;
+  if (data.accessToken) {
+    sessionStorage.setItem("accessToken", data.accessToken);
+    if (data.refreshToken) localStorage.setItem("refreshToken", data.refreshToken);
+    return true;
+  }
+  return false;
 }
 
 export const api = {
-  post: (path: string, body: unknown) => request(path, { method: "POST", body: JSON.stringify(body) }),
-  put: (path: string, body: unknown) => request(path, { method: "PUT", body: JSON.stringify(body) }),
+  post: (path: string, body?: unknown) => request(path, { method: "POST", body: body !== undefined ? JSON.stringify(body) : undefined }),
+  put: (path: string, body?: unknown) => request(path, { method: "PUT", body: body !== undefined ? JSON.stringify(body) : undefined }),
   get: (path: string) => request(path),
   del: (path: string) => request(path, { method: "DELETE" }),
 };

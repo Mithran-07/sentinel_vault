@@ -1,4 +1,5 @@
 import jwt from "jsonwebtoken";
+import crypto from "crypto";
 
 function requireSecret(name: string): string {
   const value = process.env[name];
@@ -16,7 +17,15 @@ const REFRESH_SECRET = requireSecret("JWT_REFRESH_SECRET");
 
 export interface AccessTokenPayload {
   sub: string; // user id
+  sessionId: string;
   email: string;
+}
+
+export interface RefreshTokenPayload {
+  sub: string;
+  sessionId: string;
+  family: string;
+  jti: string;
 }
 
 export function signAccessToken(payload: AccessTokenPayload): string {
@@ -27,10 +36,14 @@ export function verifyAccessToken(token: string): AccessTokenPayload {
   return jwt.verify(token, ACCESS_SECRET) as AccessTokenPayload;
 }
 
-export function signRefreshToken(userId: string): string {
-  return jwt.sign({ sub: userId }, REFRESH_SECRET, { expiresIn: "30d" });
+export function signRefreshToken(userId: string, sessionId: string, family: string): string {
+  return jwt.sign(
+    { sub: userId, sessionId, family, jti: crypto.randomUUID() },
+    REFRESH_SECRET,
+    { expiresIn: "30d" }
+  );
 }
 
-export function verifyRefreshToken(token: string): { sub: string } {
-  return jwt.verify(token, REFRESH_SECRET) as { sub: string };
+export function verifyRefreshToken(token: string): RefreshTokenPayload {
+  return jwt.verify(token, REFRESH_SECRET) as RefreshTokenPayload;
 }
