@@ -19,6 +19,11 @@ export async function requireAuth(req: AuthedRequest, res: Response, next: NextF
   try {
     const payload = verifyAccessToken(header.slice(7));
     
+    // Explicit Purpose Check: Reject partial MFA challenge tokens on general APIs
+    if (payload.purpose === "mfa_challenge") {
+      return res.status(401).json({ error: "Invalid token purpose: MFA challenge token cannot access application APIs" });
+    }
+
     // Verify session state in database if sessionId is present in access token
     if (payload.sessionId) {
       const session = await prisma.session.findFirst({

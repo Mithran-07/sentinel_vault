@@ -6,6 +6,7 @@ import helmet from "helmet";
 import cookieParser from "cookie-parser";
 import authRoutes from "./routes/auth";
 import sessionRoutes from "./routes/sessions";
+import mfaRoutes from "./routes/mfa";
 import vaultRoutes from "./routes/vault";
 import folderRoutes from "./routes/folders";
 import auditRoutes from "./routes/audit";
@@ -28,6 +29,7 @@ app.get("/health", (_req, res) => res.json({ ok: true }));
 
 app.use("/api/auth", authRoutes);
 app.use("/api/auth/sessions", sessionRoutes);
+app.use("/api/auth/mfa", mfaRoutes);
 app.use("/api/vault", vaultRoutes);
 app.use("/api/vault/items/:itemId/attachments", attachmentRoutes);
 app.use("/api/folders", folderRoutes);

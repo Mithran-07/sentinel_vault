@@ -4,7 +4,7 @@ import crypto from "crypto";
 import { z } from "zod";
 import { UAParser } from "ua-parser-js";
 import { prisma } from "../lib/prisma";
-import { signAccessToken, signRefreshToken, verifyRefreshToken } from "../lib/jwt";
+import { signAccessToken, signRefreshToken, verifyRefreshToken, signMfaChallengeToken } from "../lib/jwt";
 import { recordAuditEvent } from "../lib/audit";
 import rateLimit from "express-rate-limit";
 import { requireAuth, AuthedRequest } from "../middleware/auth";
@@ -202,7 +202,21 @@ router.post("/login", authLimiter, async (req, res) => {
 
   await recordAuditEvent(user.id, "LOGIN_SUCCESS", { ip: req.ip });
 
-  // Create new Session
+  // Check if MFA is enabled for this account
+  const mfa = await prisma.mfaMethod.findFirst({
+    where: { userId: user.id, type: "TOTP", verifiedAt: { not: null } },
+  });
+
+  if (mfa) {
+    const mfaToken = signMfaChallengeToken(user.id);
+    await recordAuditEvent(user.id, "MFA_CHALLENGE_CREATED", { type: "TOTP" });
+    return res.json({
+      mfaRequired: true,
+      mfaToken,
+    });
+  }
+
+  // Create new Session (MFA not enabled)
   const userAgentStr = req.headers["user-agent"];
   const { browser, os } = parseDevice(userAgentStr);
   const session = await prisma.session.create({

@@ -17,8 +17,10 @@ const REFRESH_SECRET = requireSecret("JWT_REFRESH_SECRET");
 
 export interface AccessTokenPayload {
   sub: string; // user id
-  sessionId: string;
-  email: string;
+  sessionId?: string;
+  email?: string;
+  purpose?: string;
+  jti?: string;
 }
 
 export interface RefreshTokenPayload {
@@ -29,7 +31,23 @@ export interface RefreshTokenPayload {
 }
 
 export function signAccessToken(payload: AccessTokenPayload): string {
-  return jwt.sign(payload, ACCESS_SECRET, { expiresIn: "15m" });
+  return jwt.sign(
+    { ...payload, purpose: payload.purpose || "access" },
+    ACCESS_SECRET,
+    { expiresIn: "15m" }
+  );
+}
+
+export function signMfaChallengeToken(userId: string): string {
+  return jwt.sign(
+    {
+      sub: userId,
+      purpose: "mfa_challenge",
+      jti: crypto.randomUUID(),
+    },
+    ACCESS_SECRET,
+    { expiresIn: "5m" } // 5-minute expiry for MFA challenge
+  );
 }
 
 export function verifyAccessToken(token: string): AccessTokenPayload {
