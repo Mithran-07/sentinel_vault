@@ -13,6 +13,9 @@ import {
 } from "@/lib/crypto";
 import { api, setTokens } from "@/lib/api";
 import { useVault } from "@/context/VaultContext";
+import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
+import { Shield, AlertCircle, Info } from "lucide-react";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -23,7 +26,6 @@ export default function RegisterPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Simple password strength calculation based on length for the UI
   const getPasswordStrength = (pass: string) => {
     if (pass.length === 0) return 0;
     if (pass.length < 8) return 25;
@@ -36,7 +38,7 @@ export default function RegisterPage() {
   
   const getStrengthColor = (score: number) => {
     if (score === 0) return "bg-border";
-    if (score <= 25) return "bg-red-500";
+    if (score <= 25) return "bg-destructive";
     if (score <= 50) return "bg-yellow-500";
     if (score <= 75) return "bg-blue-500";
     return "bg-accent";
@@ -61,11 +63,10 @@ export default function RegisterPage() {
       const saltHex = generateSaltHex();
       const kdf = defaultKdfParams(saltHex);
 
-      // Everything below happens in-browser. Only the outputs marked "-> server" leave the device.
       const masterKey = await deriveMasterKey(password, kdf);
-      const authHash = await deriveAuthHash(masterKey); // -> server
+      const authHash = await deriveAuthHash(masterKey);
       const vaultKey = generateVaultKey();
-      const encryptedVaultKey = await encryptVaultKey(vaultKey, masterKey); // -> server (opaque blob)
+      const encryptedVaultKey = await encryptVaultKey(vaultKey, masterKey);
 
       const res = await api.post("/auth/register", {
         email,
@@ -94,106 +95,92 @@ export default function RegisterPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-background px-4 py-12">
-      <div className="w-full max-w-md">
+    <main className="flex min-h-screen items-center justify-center bg-background px-4 py-12 animate-in fade-in zoom-in-95 duration-500">
+      <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <Link href="/" className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-accent mb-6 shadow-lg shadow-accent/20">
-            <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-            </svg>
+          <Link href="/" className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-accent mb-6 shadow-soft transition-transform hover:scale-105">
+            <Shield className="w-6 h-6 text-white" />
           </Link>
           <h1 className="text-2xl font-bold tracking-tight text-foreground">Create your vault</h1>
-          <p className="mt-2 text-sm text-foreground/60">Your master password never leaves your device</p>
+          <p className="mt-2 text-sm text-muted-foreground">Your keys never leave your device</p>
         </div>
 
-        <form onSubmit={onSubmit} className="space-y-5 rounded-2xl border border-border/50 bg-surface p-8 shadow-xl">
-          <div className="space-y-1">
-            <label className="text-sm font-medium text-foreground/80">Email</label>
-            <input
+        <form onSubmit={onSubmit} className="space-y-6 rounded-2xl border border-border bg-surface p-8 shadow-sm">
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-foreground">Email</label>
+            <Input
               required
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full rounded-lg border border-border bg-background px-4 py-2.5 text-foreground placeholder:text-foreground/40 outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-all"
               placeholder="name@example.com"
+              className="bg-background"
             />
           </div>
           
-          <div className="space-y-1">
+          <div className="space-y-2">
             <div className="flex justify-between items-end">
-              <label className="text-sm font-medium text-foreground/80">Master Password</label>
-              <span className="text-xs text-foreground/50">{getStrengthText(strength)}</span>
+              <label className="text-sm font-medium text-foreground">Master Password</label>
+              <span className={`text-xs font-medium ${strength > 50 ? 'text-accent' : 'text-muted-foreground'}`}>{getStrengthText(strength)}</span>
             </div>
-            <input
+            <Input
               required
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full rounded-lg border border-border bg-background px-4 py-2.5 text-foreground placeholder:text-foreground/40 outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-all"
               placeholder="Min 12 characters"
+              className="bg-background font-mono"
             />
             {/* Password strength indicator */}
-            <div className="h-1.5 w-full bg-border rounded-full overflow-hidden mt-2">
+            <div className="h-1 w-full bg-border rounded-full overflow-hidden mt-2">
               <div 
                 className={`h-full transition-all duration-300 ${getStrengthColor(strength)}`} 
                 style={{ width: `${Math.max(strength, 5)}%` }}
-              ></div>
+              />
             </div>
           </div>
 
-          <div className="space-y-1">
-            <label className="text-sm font-medium text-foreground/80">Confirm Password</label>
-            <input
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-foreground">Confirm Password</label>
+            <Input
               required
               type="password"
               value={confirm}
               onChange={(e) => setConfirm(e.target.value)}
-              className="w-full rounded-lg border border-border bg-background px-4 py-2.5 text-foreground placeholder:text-foreground/40 outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-all"
               placeholder="••••••••••••"
+              className="bg-background font-mono"
             />
           </div>
 
-          <div className="rounded-lg bg-blue-500/10 border border-blue-500/20 p-3 text-sm text-blue-400 flex items-start gap-2">
-            <svg className="w-5 h-5 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            <span>There is no "forgot password". If you lose your master password, your vault cannot be recovered.</span>
+          <div className="rounded-md bg-blue-500/10 border border-blue-500/20 p-3 text-sm text-blue-500 flex items-start gap-2">
+            <Info className="w-5 h-5 shrink-0" />
+            <span className="leading-snug">There is no "forgot password". If you lose your master password, your vault cannot be recovered.</span>
           </div>
 
           {error && (
-            <div className="rounded-lg bg-red-500/10 border border-red-500/20 p-3 text-sm text-red-500 flex items-start gap-2">
-              <svg className="w-4 h-4 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
+            <div className="rounded-md bg-destructive/10 border border-destructive/20 p-3 text-sm text-destructive flex items-start gap-2 animate-in slide-in-from-top-1">
+              <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
               <span>{error}</span>
             </div>
           )}
 
-          <button
-            disabled={busy}
-            className="w-full rounded-lg bg-accent py-3 font-medium text-white shadow-sm hover:bg-accent-hover focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2 focus:ring-offset-surface disabled:opacity-70 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 mt-2"
+          <Button
+            type="submit"
+            isLoading={busy}
+            className="w-full bg-accent hover:bg-accent-hover text-white shadow-soft"
           >
-            {busy ? (
-              <>
-                <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-                <span>Deriving key (this takes a moment)...</span>
-              </>
-            ) : (
-              "Create Vault"
-            )}
-          </button>
+            Create Vault
+          </Button>
         </form>
 
-        <p className="mt-8 text-center text-sm text-foreground/60">
+        <p className="mt-8 text-center text-sm text-muted-foreground">
           Already have a vault?{" "}
           <Link href="/login" className="font-medium text-accent hover:text-accent-hover transition-colors">
-            Log in
+            Sign in
           </Link>
         </p>
       </div>
     </main>
   );
 }
+

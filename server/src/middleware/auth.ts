@@ -38,6 +38,11 @@ export async function requireAuth(req: AuthedRequest, res: Response, next: NextF
         return res.status(401).json({ error: "Session revoked or not found" });
       }
 
+      const dbUser = await prisma.user.findUnique({ where: { id: payload.sub } });
+      if (dbUser?.isSuspended) {
+        return res.status(401).json({ error: "User is suspended" });
+      }
+
       const now = Date.now();
 
       // 1. Check absolute timeout
@@ -64,6 +69,22 @@ export async function requireAuth(req: AuthedRequest, res: Response, next: NextF
 
     req.userId = payload.sub;
     req.userEmail = payload.email;
+    next();
+  } catch {
+    return res.status(401).json({ error: "Invalid or expired token" });
+  }
+}
+
+export async function requireGlobalAdmin(req: AuthedRequest, res: Response, next: NextFunction) {
+  const header = req.headers.authorization;
+  if (!header?.startsWith("Bearer ")) {
+    return res.status(401).json({ error: "Missing bearer token" });
+  }
+  try {
+    const payload = verifyAccessToken(header.slice(7));
+    if (!payload.isSuperAdmin) {
+      return res.status(403).json({ error: "Super-admin privileges required" });
+    }
     next();
   } catch {
     return res.status(401).json({ error: "Invalid or expired token" });

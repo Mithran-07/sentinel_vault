@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useVault } from "@/context/VaultContext";
 import { encryptItem, decryptItem } from "@/lib/crypto";
 import { api, clearTokens } from "@/lib/api";
-import { ItemModal, ItemPayload, ItemType, TYPE_LABELS, TYPE_ICONS } from "@/components/ItemModal";
+import { ItemModal, ItemPayload } from "@/components/ItemModal";
 import { OnboardingModal } from "@/components/OnboardingModal";
 
 interface VaultItemRecord {
@@ -30,10 +30,7 @@ export default function VaultPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<DecryptedItem | null>(null);
   const [query, setQuery] = useState("");
-  const [typeFilter, setTypeFilter] = useState<ItemType | "ALL">("ALL");
   const [copiedId, setCopiedId] = useState<string | null>(null);
-  const [clipboardCountdown, setClipboardCountdown] = useState<number | null>(null);
-  const [pendingClearId, setPendingClearId] = useState<string | null>(null);
   const [showOnboarding, setShowOnboarding] = useState(false);
 
   useEffect(() => {
@@ -75,26 +72,17 @@ export default function VaultPage() {
   async function handleSave(data: ItemPayload) {
     if (!vaultKey) return;
     const blob = await encryptItem(data, vaultKey);
-    const d = data as Record<string, unknown>;
-    const passwordChanged = !editing || (d.password !== undefined && (editing.data as Record<string, unknown>).password !== d.password);
-    const payload = {
-      ciphertext: blob.ciphertext,
-      iv: blob.iv,
-      type: data.type,
-      ...(passwordChanged && d.password !== undefined ? { passwordChangedAt: new Date().toISOString() } : {}),
-    };
     if (editing) {
-      await api.put(`/vault/items/${editing.id}`, payload);
+      await api.put(`/vault/items/${editing.id}`, { ciphertext: blob.ciphertext, iv: blob.iv, type: "LOGIN" });
     } else {
-      await api.post("/vault/items", payload);
+      await api.post("/vault/items", { ciphertext: blob.ciphertext, iv: blob.iv, type: "LOGIN" });
     }
     setModalOpen(false);
     setEditing(null);
     await loadItems();
   }
 
-  async function handleDelete(id: string, name: string) {
-    if (!window.confirm(`Move "${name}" to trash?`)) return;
+  async function handleDelete(id: string) {
     await api.del(`/vault/items/${id}`);
     await loadItems();
   }
@@ -108,48 +96,10 @@ export default function VaultPage() {
   function handleCopyPassword(id: string, password: string) {
     navigator.clipboard.writeText(password);
     setCopiedId(id);
-    setPendingClearId(null);
-    // Show "Copied!" briefly, then start the countdown
-    setTimeout(() => {
-      setCopiedId(null);
-      setPendingClearId(id);
-      setClipboardCountdown(30);
-    }, 1500);
+    setTimeout(() => setCopiedId(null), 2000);
   }
 
-  function handleManualClear() {
-    // This runs inside a real click handler — guaranteed to work in Safari.
-    navigator.clipboard.writeText("").catch(() => {});
-    setPendingClearId(null);
-    setClipboardCountdown(null);
-  }
-
-  // Countdown tick effect
-  useEffect(() => {
-    if (clipboardCountdown === null || clipboardCountdown <= 0) return;
-    const t = setTimeout(() => setClipboardCountdown((c) => (c !== null ? c - 1 : null)), 1000);
-    return () => clearTimeout(t);
-  }, [clipboardCountdown]);
-
-  const filtered = items.filter((i) => {
-    const matchesQuery = i.data.name.toLowerCase().includes(query.toLowerCase());
-    const matchesType = typeFilter === "ALL" || i.data.type === typeFilter;
-    return matchesQuery && matchesType;
-  });
-
-  // Helper: get a secondary info line per item type
-  function secondaryInfo(data: ItemPayload): string {
-    const d = data as Record<string, unknown>;
-    switch (data.type) {
-      case "LOGIN":          return String(d.username ?? "");
-      case "SECURE_NOTE":    return "Encrypted note";
-      case "CARD":           return d.number ? `•••• ${String(d.number).slice(-4)}` : "Card";
-      case "IDENTITY":       return [d.firstName, d.lastName].filter(Boolean).join(" ");
-      case "SSH_KEY":        return String(d.publicKey ?? "").slice(0, 40) || "SSH Key";
-      case "API_CREDENTIAL": return String(d.endpoint ?? "") || "API Credential";
-      default:               return "";
-    }
-  }
+  const filtered = items.filter((i) => i.data.name.toLowerCase().includes(query.toLowerCase()));
 
   return (
     <div className="min-h-screen bg-background flex flex-col md:flex-row">
@@ -167,31 +117,44 @@ export default function VaultPage() {
           <div className="text-sm font-medium text-foreground truncate">{email}</div>
         </div>
 
-        <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
-          <Link href="/vault" className="flex items-center gap-3 px-3 py-2 rounded-lg bg-accent/10 text-accent font-medium transition-colors">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" /></svg>
-            All Items
-          </Link>
-          <Link href="/trash" className="flex items-center gap-3 px-3 py-2 rounded-lg text-foreground/70 hover:bg-surfaceHover hover:text-foreground transition-colors">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-            Trash
-          </Link>
-          <Link href="/health" className="flex items-center gap-3 px-3 py-2 rounded-lg text-foreground/70 hover:bg-surfaceHover hover:text-foreground transition-colors">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
-            Security Health
-          </Link>
-          <Link href="/settings/security" className="flex items-center gap-3 px-3 py-2 rounded-lg text-foreground/70 hover:bg-surfaceHover hover:text-foreground transition-colors">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-            Security Settings
-          </Link>
-          <Link href="/audit" className="flex items-center gap-3 px-3 py-2 rounded-lg text-foreground/70 hover:bg-surfaceHover hover:text-foreground transition-colors">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg>
-            Audit Log
-          </Link>
-          <Link href="/enterprise" className="flex items-center gap-3 px-3 py-2 rounded-lg text-foreground/70 hover:bg-surfaceHover hover:text-foreground transition-colors">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
-            Enterprise
-          </Link>
+        <nav className="flex-1 p-4 overflow-y-auto">
+          <div className="mb-6">
+            <h3 className="px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Vault</h3>
+            <div className="space-y-1">
+              <Link href="/vault" className="flex items-center gap-3 px-3 py-2 rounded-lg bg-accent/10 text-accent font-medium transition-colors">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" /></svg>
+                All Items
+              </Link>
+              <Link href="/health" className="flex items-center gap-3 px-3 py-2 rounded-lg text-foreground/70 hover:bg-surfaceHover hover:text-foreground transition-colors">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
+                Security Health
+              </Link>
+            </div>
+          </div>
+          
+          <div className="mb-6">
+            <h3 className="px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Security</h3>
+            <div className="space-y-1">
+              <Link href="/settings/security" className="flex items-center gap-3 px-3 py-2 rounded-lg text-foreground/70 hover:bg-surfaceHover hover:text-foreground transition-colors">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                Security Settings
+              </Link>
+              <Link href="/audit" className="flex items-center gap-3 px-3 py-2 rounded-lg text-foreground/70 hover:bg-surfaceHover hover:text-foreground transition-colors">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg>
+                Audit Log
+              </Link>
+            </div>
+          </div>
+          
+          <div className="mb-6">
+            <h3 className="px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Enterprise</h3>
+            <div className="space-y-1">
+              <Link href="/enterprise" className="flex items-center gap-3 px-3 py-2 rounded-lg text-foreground/70 hover:bg-surfaceHover hover:text-foreground transition-colors">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
+                Enterprise
+              </Link>
+            </div>
+          </div>
         </nav>
 
         <div className="p-4 border-t border-border/50">
@@ -204,43 +167,28 @@ export default function VaultPage() {
 
       {/* Main Content Workspace */}
       <main className="flex-1 flex flex-col min-w-0">
-        <header className="px-8 py-6 border-b border-border/50 flex flex-col gap-4 bg-surface/50 sticky top-0 z-10 backdrop-blur-md">
-          <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-            <h1 className="text-2xl font-bold tracking-tight">All Items</h1>
-            <div className="flex w-full sm:w-auto items-center gap-3">
-              <div className="relative flex-1 sm:w-64">
-                <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-foreground/40" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-                <input
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Search vault..."
-                  className="w-full pl-9 pr-4 py-2 bg-background border border-border rounded-lg text-sm text-foreground outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-all"
-                />
-              </div>
-              <button
-                onClick={() => { setEditing(null); setModalOpen(true); }}
-                className="flex-shrink-0 bg-accent hover:bg-accent-hover text-white px-4 py-2 rounded-lg font-medium text-sm transition-colors shadow-sm flex items-center gap-2"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-                New Item
-              </button>
+        <header className="px-8 py-6 border-b border-border/50 flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between bg-surface/50 sticky top-0 z-10 backdrop-blur-md">
+          <h1 className="text-2xl font-bold tracking-tight">All Items</h1>
+          <div className="flex w-full sm:w-auto items-center gap-3">
+            <div className="relative flex-1 sm:w-64">
+              <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-foreground/40" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search vault..."
+                className="w-full pl-9 pr-4 py-2 bg-background border border-border rounded-lg text-sm text-foreground outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-all"
+              />
             </div>
-          </div>
-          {/* Type filter tabs */}
-          <div className="flex gap-1.5 overflow-x-auto pb-1">
-            {(["ALL", "LOGIN", "SECURE_NOTE", "CARD", "IDENTITY", "SSH_KEY", "API_CREDENTIAL"] as const).map((t) => (
-              <button
-                key={t}
-                onClick={() => setTypeFilter(t)}
-                className={`flex-shrink-0 px-3 py-1 rounded-full text-xs font-medium transition-colors ${
-                  typeFilter === t
-                    ? "bg-accent text-white"
-                    : "bg-background border border-border text-foreground/60 hover:text-foreground"
-                }`}
-              >
-                {t === "ALL" ? "All" : `${TYPE_ICONS[t]} ${TYPE_LABELS[t]}`}
-              </button>
-            ))}
+            <button
+              onClick={() => {
+                setEditing(null);
+                setModalOpen(true);
+              }}
+              className="flex-shrink-0 bg-accent hover:bg-accent-hover text-white px-4 py-2 rounded-lg font-medium text-sm transition-colors shadow-sm flex items-center gap-2"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+              New Item
+            </button>
           </div>
         </header>
 
@@ -276,49 +224,26 @@ export default function VaultPage() {
                   className="group flex flex-col sm:flex-row sm:items-center justify-between rounded-xl border border-border bg-surface hover:border-border/80 hover:bg-surfaceHover transition-all p-4"
                 >
                   <div className="flex items-center gap-4 mb-4 sm:mb-0">
-                    <div className="w-10 h-10 rounded-lg bg-background border border-border flex items-center justify-center text-lg shrink-0">
-                      {TYPE_ICONS[item.data.type as ItemType] ?? item.data.name.charAt(0)}
+                    <div className="w-10 h-10 rounded-lg bg-background border border-border flex items-center justify-center text-foreground/40 font-bold uppercase shrink-0">
+                      {item.data.name.charAt(0)}
                     </div>
                     <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <p className="font-medium text-foreground truncate">{item.data.name}</p>
-                        <span className="hidden sm:inline-flex flex-shrink-0 text-xs px-1.5 py-0.5 rounded bg-accent/10 text-accent/80 font-medium">
-                          {TYPE_LABELS[item.data.type as ItemType] ?? item.data.type}
-                        </span>
-                      </div>
-                      <p className="text-sm text-foreground/60 truncate">{secondaryInfo(item.data)}</p>
+                      <p className="font-medium text-foreground truncate">{item.data.name}</p>
+                      <p className="text-sm text-foreground/60 truncate">{"username" in item.data ? item.data.username : "type" in item.data ? item.data.type : ""}</p>
                     </div>
                   </div>
                   
                   <div className="flex items-center gap-2 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                    {pendingClearId === item.id ? (
-                      // Countdown / clear button — replaces Copy while clipboard holds the password
+                    {"password" in item.data && item.data.password && (
                       <button
-                        onClick={handleManualClear}
-                        className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-3 py-1.5 rounded-md border text-xs font-medium transition-colors ${
-                          clipboardCountdown !== null && clipboardCountdown > 0
-                            ? "bg-amber-500/10 border-amber-500/30 text-amber-400 hover:bg-amber-500/20"
-                            : "bg-red-500/10 border-red-500/30 text-red-400 hover:bg-red-500/20 animate-pulse"
-                        }`}
-                        title="Click to clear clipboard now"
-                      >
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
-                        <span>
-                          {clipboardCountdown !== null && clipboardCountdown > 0
-                            ? `Clears in ${clipboardCountdown}s`
-                            : "Clear clipboard"}
-                        </span>
-                      </button>
-                    ) : (
-                      <button
-                        onClick={() => handleCopyPassword(item.id, (item.data as Record<string, unknown>).password as string)}
+                        onClick={() => handleCopyPassword(item.id, (item.data as any).password)}
                         className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-3 py-1.5 rounded-md bg-background border border-border text-xs font-medium text-foreground/80 hover:text-foreground hover:border-accent/50 transition-colors"
                         title="Copy Password"
                       >
                         {copiedId === item.id ? (
                           <>
                             <svg className="w-3.5 h-3.5 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-                            <span className="text-accent">Copied!</span>
+                            <span className="text-accent">Copied</span>
                           </>
                         ) : (
                           <>
@@ -335,7 +260,7 @@ export default function VaultPage() {
                       Edit
                     </button>
                     <button
-                      onClick={() => handleDelete(item.id, item.data.name)}
+                      onClick={() => handleDelete(item.id)}
                       className="px-3 py-1.5 rounded-md bg-background border border-border text-xs font-medium text-red-400 hover:text-red-300 hover:border-red-500/30 transition-colors"
                     >
                       Delete

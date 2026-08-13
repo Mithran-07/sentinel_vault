@@ -21,6 +21,7 @@ export interface AccessTokenPayload {
   email?: string;
   purpose?: string;
   jti?: string;
+  isSuperAdmin?: boolean;
 }
 
 export interface RefreshTokenPayload {

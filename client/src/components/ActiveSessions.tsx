@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
+import { Button } from "@/components/ui/Button";
+import { Badge } from "@/components/ui/Badge";
 
 export interface SessionRecord {
   id: string;
@@ -95,12 +97,13 @@ export function ActiveSessions() {
           </p>
         </div>
         {sessions.length > 1 && (
-          <button
+          <Button
+            variant="destructive"
+            size="sm"
             onClick={handleLogoutAllOthers}
-            className="flex-shrink-0 px-3 py-1.5 rounded-lg border border-red-500/30 bg-red-500/10 text-xs font-medium text-red-400 hover:bg-red-500/20 transition-colors"
           >
             Logout All Other Devices
-          </button>
+          </Button>
         )}
       </div>
 
@@ -128,18 +131,18 @@ export function ActiveSessions() {
                   {getDeviceIcon(s.deviceType, s.os)}
                 </div>
                 <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2 mb-1">
                     <span className="font-medium text-foreground text-sm">{s.browser}</span>
                     <span className="text-xs text-foreground/50">on {s.os}</span>
                     {s.isCurrent && (
-                      <span className="px-2 py-0.5 rounded-full bg-accent text-white text-[10px] font-semibold tracking-wide uppercase">
+                      <Badge className="bg-accent text-white hover:bg-accent border-transparent tracking-wide uppercase px-2 py-0">
                         This Device
-                      </span>
+                      </Badge>
                     )}
                     {s.isSuspicious && (
-                      <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30 text-[10px] font-semibold tracking-wide uppercase">
+                      <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30 hover:bg-amber-500/20 tracking-wide uppercase px-2 py-0">
                         Unrecognized Device
-                      </span>
+                      </Badge>
                     )}
                   </div>
                   <p className="text-xs text-foreground/50 mt-0.5">
@@ -148,13 +151,15 @@ export function ActiveSessions() {
                 </div>
               </div>
 
-              <button
+              <Button
+                variant="outline"
+                size="sm"
                 disabled={revokingId === s.id}
                 onClick={() => handleRevoke(s.id, s.isCurrent)}
-                className="px-3 py-1.5 rounded-md bg-background border border-border text-xs font-medium text-foreground/70 hover:text-red-400 hover:border-red-500/30 transition-colors disabled:opacity-50"
+                className="hover:text-red-400 hover:border-red-500/30"
               >
                 {revokingId === s.id ? "Revoking..." : s.isCurrent ? "Sign Out" : "Revoke Session"}
-              </button>
+              </Button>
             </div>
           ))}
         </div>

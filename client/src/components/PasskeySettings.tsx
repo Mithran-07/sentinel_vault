@@ -3,6 +3,9 @@
 import { useEffect, useState } from "react";
 import { startRegistration } from "@simplewebauthn/browser";
 import { api } from "@/lib/api";
+import { Button } from "@/components/ui/Button";
+import { Badge } from "@/components/ui/Badge";
+import { Input } from "@/components/ui/Input";
 
 export interface PasskeyRecord {
   id: string;
@@ -126,21 +129,21 @@ export function PasskeySettings() {
     <div className="space-y-6 border-b border-border/50 pb-8">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 mb-1">
             <h2 className="text-lg font-bold text-foreground">Passkeys & Hardware Keys</h2>
-            <span className="px-2 py-0.5 rounded-full text-xs font-semibold uppercase bg-accent/10 text-accent border border-accent/20">
+            <Badge className="bg-accent/10 text-accent border-accent/20 hover:bg-accent/10 uppercase tracking-wide">
               WebAuthn / FIDO2
-            </span>
+            </Badge>
           </div>
           <p className="text-xs text-foreground/50 mt-1">
             Log in passwordlessly or with phishing-resistant hardware security keys (Touch ID, Face ID, YubiKey).
           </p>
         </div>
 
-        <button
+        <Button
           disabled={busy}
           onClick={handleAddPasskey}
-          className="flex-shrink-0 px-4 py-2 rounded-lg bg-accent text-white text-xs font-medium hover:bg-accent-hover transition-colors disabled:opacity-50 flex items-center gap-2"
+          className="flex-shrink-0"
         >
           {busy ? (
             <span>Initiating WebAuthn...</span>
@@ -149,7 +152,7 @@ export function PasskeySettings() {
               <span>+ Add a Passkey</span>
             </>
           )}
-        </button>
+        </Button>
       </div>
 
       {error && (
@@ -184,11 +187,11 @@ export function PasskeySettings() {
                   🔑
                 </div>
                 <div className="min-w-0">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 mb-1">
                     <span className="font-medium text-foreground text-sm">{pk.name || "Passkey"}</span>
-                    <span className="text-[10px] text-foreground/50 uppercase px-1.5 py-0.5 rounded bg-background border border-border font-mono">
+                    <Badge variant="outline" className="text-[10px] uppercase font-mono px-1.5 py-0">
                       {pk.deviceType || "Passkey"}
-                    </span>
+                    </Badge>
                   </div>
                   <p className="text-xs text-foreground/50 mt-0.5">
                     Added: {new Date(pk.createdAt).toLocaleDateString()} · Last used: {pk.lastUsedAt ? new Date(pk.lastUsedAt).toLocaleString() : "Never"}
@@ -197,22 +200,25 @@ export function PasskeySettings() {
               </div>
 
               <div className="flex items-center gap-2">
-                <button
+                <Button
+                  variant="outline"
+                  size="sm"
                   onClick={() => {
                     setEditingPasskey(pk);
                     setNewName(pk.name || "Security Key");
                   }}
-                  className="px-3 py-1.5 rounded-md bg-background border border-border text-xs font-medium text-foreground/70 hover:text-foreground transition-colors"
                 >
                   Rename
-                </button>
-                <button
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
                   disabled={deletingId === pk.id}
                   onClick={() => handleRemove(pk.id, pk.name)}
-                  className="px-3 py-1.5 rounded-md bg-background border border-border text-xs font-medium text-foreground/70 hover:text-red-400 hover:border-red-500/30 transition-colors disabled:opacity-50"
+                  className="hover:text-red-400 hover:border-red-500/30"
                 >
                   {deletingId === pk.id ? "Removing..." : "Remove"}
-                </button>
+                </Button>
               </div>
             </div>
           ))}
@@ -225,35 +231,35 @@ export function PasskeySettings() {
           <div className="w-full max-w-sm bg-surface border border-border rounded-2xl p-6 shadow-2xl space-y-4">
             <div className="flex items-center justify-between border-b border-border/50 pb-3">
               <h3 className="text-sm font-bold text-foreground">Rename Passkey</h3>
-              <button onClick={() => setEditingPasskey(null)} className="text-foreground/40 hover:text-foreground">✕</button>
+              <button onClick={() => setEditingPasskey(null)} className="text-foreground/40 hover:text-foreground transition-colors">✕</button>
             </div>
 
             <form onSubmit={handleRenameSubmit} className="space-y-4">
               <div className="space-y-1">
                 <label className="text-xs font-medium text-foreground/80">Friendly Name:</label>
-                <input
+                <Input
                   required
                   value={newName}
                   onChange={(e) => setNewName(e.target.value)}
-                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
                 />
               </div>
 
               <div className="flex gap-2 pt-2">
-                <button
+                <Button
                   type="button"
+                  variant="outline"
                   onClick={() => setEditingPasskey(null)}
-                  className="flex-1 py-2 rounded-lg border border-border text-xs text-foreground/70 hover:bg-surfaceHover"
+                  className="flex-1"
                 >
                   Cancel
-                </button>
-                <button
+                </Button>
+                <Button
                   type="submit"
                   disabled={renameBusy || !newName.trim()}
-                  className="flex-1 py-2 rounded-lg bg-accent text-white text-xs font-medium hover:bg-accent-hover disabled:opacity-50"
+                  className="flex-1"
                 >
                   {renameBusy ? "Saving..." : "Save Name"}
-                </button>
+                </Button>
               </div>
             </form>
           </div>

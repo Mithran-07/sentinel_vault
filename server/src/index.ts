@@ -15,6 +15,7 @@ import auditRoutes from "./routes/audit";
 import tagRoutes from "./routes/tags";
 import attachmentRoutes from "./routes/attachments";
 import orgRoutes from "./routes/orgs";
+import ssoRoutes, { ssoAuthRouter } from "./routes/sso";
 
 const app = express();
 
@@ -31,6 +32,7 @@ app.use(express.json({ limit: "1mb" }));
 app.get("/health", (_req, res) => res.json({ ok: true }));
 
 app.use("/api/auth", authRoutes);
+app.use("/api/auth/sso", ssoAuthRouter);
 app.use("/api/auth/sessions", sessionRoutes);
 app.use("/api/auth/mfa", mfaRoutes);
 app.use("/api/auth/passkeys", passkeyRoutes);
@@ -41,6 +43,7 @@ app.use("/api/folders", folderRoutes);
 app.use("/api/tags", tagRoutes);
 app.use("/api/audit", auditRoutes);
 app.use("/api/orgs", orgRoutes);
+app.use("/api/orgs", ssoRoutes);
 
 app.use((err: unknown, req: Request, res: Response, next: NextFunction) => {
   console.error(err);

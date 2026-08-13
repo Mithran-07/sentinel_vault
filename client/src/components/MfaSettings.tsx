@@ -2,6 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
+import { Button } from "@/components/ui/Button";
+import { Badge } from "@/components/ui/Badge";
+import { Input } from "@/components/ui/Input";
 
 export function MfaSettings() {
   const [enabled, setEnabled] = useState(false);
@@ -99,17 +102,17 @@ export function MfaSettings() {
     <div className="space-y-6 border-b border-border/50 pb-8">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 mb-1">
             <h2 className="text-lg font-bold text-foreground">Two-Factor Authentication (TOTP)</h2>
-            <span
-              className={`px-2 py-0.5 rounded-full text-xs font-semibold uppercase ${
+            <Badge
+              className={
                 enabled
-                  ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
-                  : "bg-amber-500/10 text-amber-400 border border-amber-500/20"
-              }`}
+                  ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/10"
+                  : "bg-amber-500/10 text-amber-400 border-amber-500/20 hover:bg-amber-500/10"
+              }
             >
               {loading ? "Checking..." : enabled ? "Enabled" : "Disabled"}
-            </span>
+            </Badge>
           </div>
           <p className="text-xs text-foreground/50 mt-1">
             Require a 6-digit security code from Google Authenticator, Authy, or 1Password when logging into your vault.
@@ -119,20 +122,19 @@ export function MfaSettings() {
         {!loading && (
           <div>
             {enabled ? (
-              <button
+              <Button
+                variant="destructive"
                 onClick={() => setDisableModalOpen(true)}
-                className="px-4 py-2 rounded-lg border border-red-500/30 bg-red-500/10 text-xs font-medium text-red-400 hover:bg-red-500/20 transition-colors"
               >
                 Disable MFA
-              </button>
+              </Button>
             ) : (
-              <button
+              <Button
                 disabled={setupBusy}
                 onClick={handleStartSetup}
-                className="px-4 py-2 rounded-lg bg-accent text-white text-xs font-medium hover:bg-accent-hover transition-colors disabled:opacity-50"
               >
                 {setupBusy ? "Generating QR..." : "Enable MFA"}
-              </button>
+              </Button>
             )}
           </div>
         )}
@@ -144,7 +146,7 @@ export function MfaSettings() {
           <div className="w-full max-w-md bg-surface border border-border rounded-2xl p-6 shadow-2xl space-y-6">
             <div className="flex items-center justify-between border-b border-border/50 pb-4">
               <h3 className="text-lg font-bold text-foreground">Set up Two-Factor Authentication</h3>
-              <button onClick={() => setSetupModalOpen(false)} className="text-foreground/40 hover:text-foreground">✕</button>
+              <button onClick={() => setSetupModalOpen(false)} className="text-foreground/40 hover:text-foreground transition-colors">✕</button>
             </div>
 
             <div className="space-y-4">
@@ -168,13 +170,13 @@ export function MfaSettings() {
               <form onSubmit={handleVerifySetup} className="space-y-4 pt-2">
                 <div className="space-y-1">
                   <label className="text-xs font-medium text-foreground/80">2. Enter 6-digit code to verify:</label>
-                  <input
+                  <Input
                     required
                     maxLength={6}
                     value={verifyCode}
                     onChange={(e) => setVerifyCode(e.target.value)}
                     placeholder="123456"
-                    className="w-full text-center text-lg tracking-widest font-mono rounded-lg border border-border bg-background py-2 text-foreground outline-none focus:border-accent"
+                    className="text-center text-lg tracking-widest font-mono"
                   />
                 </div>
 
@@ -183,20 +185,21 @@ export function MfaSettings() {
                 )}
 
                 <div className="flex gap-3 pt-2">
-                  <button
+                  <Button
                     type="button"
+                    variant="outline"
                     onClick={() => setSetupModalOpen(false)}
-                    className="flex-1 py-2 rounded-lg border border-border text-xs text-foreground/70 hover:bg-surfaceHover"
+                    className="flex-1"
                   >
                     Cancel
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     type="submit"
                     disabled={setupBusy || verifyCode.length !== 6}
-                    className="flex-1 py-2 rounded-lg bg-accent text-white text-xs font-medium hover:bg-accent-hover disabled:opacity-50"
+                    className="flex-1"
                   >
                     {setupBusy ? "Verifying..." : "Verify & Enable"}
-                  </button>
+                  </Button>
                 </div>
               </form>
             </div>
@@ -210,7 +213,7 @@ export function MfaSettings() {
           <div className="w-full max-w-md bg-surface border border-border rounded-2xl p-6 shadow-2xl space-y-6">
             <div className="flex items-center justify-between border-b border-border/50 pb-4">
               <h3 className="text-lg font-bold text-foreground">Disable Two-Factor Authentication</h3>
-              <button onClick={() => setDisableModalOpen(false)} className="text-foreground/40 hover:text-foreground">✕</button>
+              <button onClick={() => setDisableModalOpen(false)} className="text-foreground/40 hover:text-foreground transition-colors">✕</button>
             </div>
 
             <form onSubmit={handleDisableMfa} className="space-y-4">
@@ -220,13 +223,13 @@ export function MfaSettings() {
 
               <div className="space-y-1">
                 <label className="text-xs font-medium text-foreground/80">Current 6-digit Code:</label>
-                <input
+                <Input
                   required
                   maxLength={6}
                   value={disableCode}
                   onChange={(e) => setDisableCode(e.target.value)}
                   placeholder="123456"
-                  className="w-full text-center text-lg tracking-widest font-mono rounded-lg border border-border bg-background py-2 text-foreground outline-none focus:border-accent"
+                  className="text-center text-lg tracking-widest font-mono"
                 />
               </div>
 
@@ -235,20 +238,22 @@ export function MfaSettings() {
               )}
 
               <div className="flex gap-3 pt-2">
-                <button
+                <Button
                   type="button"
+                  variant="outline"
                   onClick={() => setDisableModalOpen(false)}
-                  className="flex-1 py-2 rounded-lg border border-border text-xs text-foreground/70 hover:bg-surfaceHover"
+                  className="flex-1"
                 >
                   Cancel
-                </button>
-                <button
+                </Button>
+                <Button
                   type="submit"
+                  variant="destructive"
                   disabled={disableBusy || disableCode.length !== 6}
-                  className="flex-1 py-2 rounded-lg bg-red-500 text-white text-xs font-medium hover:bg-red-600 disabled:opacity-50"
+                  className="flex-1"
                 >
                   {disableBusy ? "Disabling..." : "Disable MFA"}
-                </button>
+                </Button>
               </div>
             </form>
           </div>

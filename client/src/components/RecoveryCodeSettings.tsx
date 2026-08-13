@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
+import { Button } from "@/components/ui/Button";
+import { Badge } from "@/components/ui/Badge";
 
 export function RecoveryCodeSettings() {
   const [enabled, setEnabled] = useState(false);
@@ -91,30 +93,30 @@ export function RecoveryCodeSettings() {
     <div className="space-y-6 border-b border-border/50 pb-8">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 mb-1">
             <h2 className="text-lg font-bold text-foreground">Account Recovery Codes</h2>
-            <span
-              className={`px-2 py-0.5 rounded-full text-xs font-semibold uppercase ${
+            <Badge
+              className={
                 enabled
-                  ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
-                  : "bg-amber-500/10 text-amber-400 border border-amber-500/20"
-              }`}
+                  ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/10 uppercase tracking-wide px-2 py-0"
+                  : "bg-amber-500/10 text-amber-400 border-amber-500/20 hover:bg-amber-500/10 uppercase tracking-wide px-2 py-0"
+              }
             >
               {enabled ? `Active (${remainingCodes} remaining)` : "Not Configured"}
-            </span>
+            </Badge>
           </div>
           <p className="text-xs text-foreground/50 mt-1">
             Single-use 128-bit emergency recovery codes to bypass a lost TOTP authenticator or Passkey.
           </p>
         </div>
 
-        <button
+        <Button
           disabled={busy}
           onClick={handleGenerateCodes}
-          className="flex-shrink-0 px-4 py-2 rounded-lg bg-accent text-white text-xs font-medium hover:bg-accent-hover transition-colors disabled:opacity-50 flex items-center gap-2"
+          className="flex-shrink-0"
         >
           {busy ? "Generating..." : enabled ? "Regenerate Codes" : "Generate Recovery Codes"}
-        </button>
+        </Button>
       </div>
 
       {error && (
@@ -172,20 +174,22 @@ export function RecoveryCodeSettings() {
             </div>
 
             <div className="flex gap-2">
-              <button
+              <Button
                 type="button"
+                variant="outline"
                 onClick={handleCopyAll}
-                className="flex-1 py-2 rounded-lg bg-background border border-border text-xs font-medium text-foreground hover:bg-surfaceHover transition-colors"
+                className="flex-1"
               >
                 {copied ? "✓ Copied!" : "📋 Copy All"}
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
+                variant="outline"
                 onClick={handleDownloadTxt}
-                className="flex-1 py-2 rounded-lg bg-background border border-border text-xs font-medium text-foreground hover:bg-surfaceHover transition-colors"
+                className="flex-1"
               >
                 ⬇️ Download .txt
-              </button>
+              </Button>
             </div>
 
             <div className="pt-2 border-t border-border/50 space-y-3">
@@ -199,14 +203,14 @@ export function RecoveryCodeSettings() {
                 <span>I have saved these recovery codes in a safe place. I understand they will not be shown again.</span>
               </label>
 
-              <button
+              <Button
                 type="button"
                 disabled={!confirmedSaved}
                 onClick={handleCloseModal}
-                className="w-full py-2.5 rounded-lg bg-accent text-white text-xs font-medium hover:bg-accent-hover disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                className="w-full"
               >
                 I'm Done — Close Window
-              </button>
+              </Button>
             </div>
           </div>
         </div>

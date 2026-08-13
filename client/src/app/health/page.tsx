@@ -14,7 +14,6 @@ interface VaultItemRecord {
   ciphertext: string;
   iv: string;
   updatedAt: string;
-  passwordChangedAt: string;
 }
 
 interface HealthItem {
@@ -58,27 +57,25 @@ export default function HealthPage() {
       }))
     );
 
-    const logins = decrypted.filter(
-      (item): item is { record: VaultItemRecord; data: Extract<ItemPayload, { type: "LOGIN" }> } => item.data.type === "LOGIN"
-    );
-
     const passwordCounts = new Map<string, number>();
-    for (const { data } of logins) {
-      if (!data.password) continue;
-      passwordCounts.set(data.password, (passwordCounts.get(data.password) ?? 0) + 1);
+    for (const { data } of decrypted) {
+      const pwd = "password" in data ? data.password : undefined;
+      if (!pwd) continue;
+      passwordCounts.set(pwd, (passwordCounts.get(pwd) ?? 0) + 1);
     }
 
     const now = Date.now();
-    const health: HealthItem[] = logins
-      .filter(({ data }) => !!data.password)
+    const health: HealthItem[] = decrypted
+      .filter(({ data }) => "password" in data && !!data.password)
       .map(({ record, data }) => {
-        const ageDays = (now - new Date(record.passwordChangedAt).getTime()) / (1000 * 60 * 60 * 24);
+        const pwd = "password" in data ? data.password as string : "";
+        const ageDays = (now - new Date(record.updatedAt).getTime()) / (1000 * 60 * 60 * 24);
         return {
           id: record.id,
           name: data.name || "(untitled)",
-          password: data.password,
-          strength: estimateStrength(data.password),
-          reused: (passwordCounts.get(data.password) ?? 0) > 1,
+          password: pwd,
+          strength: estimateStrength(pwd),
+          reused: (passwordCounts.get(pwd) ?? 0) > 1,
           old: ageDays > OLD_THRESHOLD_DAYS,
         };
       });

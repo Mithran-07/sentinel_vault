@@ -31,10 +31,17 @@ model User {
   lastLoginIp                 String?
   createdAt                   DateTime  @default(now())
 
+  isSuperAdmin                Boolean   @default(false)
+  isSuspended                 Boolean   @default(false)
+  cryptoSetupPending          Boolean   @default(false)
+  ssoProviderId               String?
+  ssoSubjectId                String?
+
   folders             Folder[]
   vaultItems          VaultItem[]
   refreshTokens       RefreshToken[]
   sessions            Session[]
+  ssoIdentities       SsoIdentity[]
   passkeys            Passkey[]
   mfaMethods          MfaMethod[]
   recoveryCodes       RecoveryCode[]
@@ -217,6 +224,7 @@ model Organization {
 
   members     OrganizationMember[]
   invitations OrganizationInvitation[]
+  identityProvider IdentityProvider?
 }
 
 model OrganizationMember {
@@ -244,3 +252,80 @@ model OrganizationInvitation {
   usedAt    DateTime?
   createdAt DateTime     @default(now())
 }
+
+// ── Phase 4.9 Enterprise SSO & Identity Provider ─────────────────────────────
+
+model IdentityProvider {
+  id                     String       @id @default(uuid())
+  organizationId         String       @unique
+  organization           Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  type                   String       // "SAML" | "OIDC"
+  isActive               Boolean      @default(true)
+
+  // SAML fields
+  entityId               String?
+  ssoUrl                 String?
+  x509Certificate        String?      @db.Text
+
+  // OIDC fields
+  clientId               String?
+  clientSecretCiphertext String?      // Encrypted by server KMS
+  issuer                 String?
+
+  createdAt              DateTime     @default(now())
+  updatedAt              DateTime     @updatedAt
+
+  ssoIdentities          SsoIdentity[]
+  ssoTransactions        SsoTransaction[]
+  samlAssertionReplays   SamlAssertionReplay[]
+  idpAttributeMappings   IdpAttributeMapping[]
+}
+
+model SsoIdentity {
+  id             String    @id @default(uuid())
+  userId         String
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  providerId     String
+  provider       IdentityProvider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  subject        String
+  createdAt      DateTime  @default(now())
+
+  @@unique([providerId, subject])
+}
+
+model SsoTransaction {
+  id             String    @id @default(uuid())
+  providerId     String
+  provider       IdentityProvider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  organizationId String
+  state          String    @unique
+  nonce          String
+  pkceVerifier   String
+  expiresAt      DateTime
+  consumedAt     DateTime?
+  createdAt      DateTime  @default(now())
+}
+
+model SamlAssertionReplay {
+  id             String    @id @default(uuid())
+  providerId     String
+  provider       IdentityProvider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  assertionId    String
+  expiresAt      DateTime?
+  createdAt      DateTime  @default(now())
+
+  @@unique([providerId, assertionId])
+}
+
+model IdpAttributeMapping {
+  id             String    @id @default(uuid())
+  providerId     String
+  provider       IdentityProvider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  idpAttribute   String
+  appAttribute   String
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@unique([providerId, idpAttribute, appAttribute])
+}
+

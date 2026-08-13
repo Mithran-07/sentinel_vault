@@ -1,99 +1,114 @@
-"use client";
-
 import Link from "next/link";
-
+import { Shield, Lock, Key, ArrowRight } from "lucide-react";
+import { Button } from "@/components/ui/Button";
+import { Badge } from "@/components/ui/Badge";
 
 export default function Home() {
   return (
-    <main className="flex min-h-screen flex-col bg-background">
+    <main className="flex min-h-screen flex-col bg-background selection:bg-accent/20">
       {/* Navigation */}
-      <nav className="flex items-center justify-between px-6 py-4 border-b border-border/50 bg-background/80 backdrop-blur-md sticky top-0 z-50">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded bg-accent flex items-center justify-center">
-            <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-            </svg>
+      <nav className="flex items-center justify-between px-6 lg:px-10 py-5 bg-background/80 backdrop-blur-xl sticky top-0 z-50 border-b border-border">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-accent flex items-center justify-center shadow-soft">
+            <Shield className="w-4 h-4 text-white" />
           </div>
           <span className="text-xl font-bold tracking-tight">Vault</span>
         </div>
-        <div className="flex items-center gap-4">
-          <Link href="/login" className="text-sm font-medium text-foreground hover:text-accent transition-colors">
-            Log in
+        <div className="flex items-center gap-6">
+          <Link href="/login" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
+            Sign In
           </Link>
-          <Link href="/register" className="text-sm font-medium bg-foreground text-background px-4 py-2 rounded-md hover:bg-foreground/90 transition-colors">
-            Get Started
+          <Link href="/register">
+            <Button className="bg-foreground text-background hover:bg-foreground/90 shadow-soft">
+              Get Started
+            </Button>
           </Link>
         </div>
       </nav>
 
       {/* Hero Section */}
-      <section className="flex-1 flex flex-col items-center justify-center px-4 py-24 text-center">
-        <h1 className="text-5xl md:text-7xl font-extrabold tracking-tight max-w-4xl leading-tight">
-          Uncompromising security for your <span className="text-accent">digital life.</span>
+      <section className="relative flex-1 flex flex-col items-center justify-center px-6 py-32 lg:py-40 text-center overflow-hidden">
+        {/* Subtle background glow */}
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-accent/5 rounded-full blur-[100px] -z-10" />
+        
+        <Badge variant="outline" className="mb-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+          Enterprise Security, Zero Compromises
+        </Badge>
+        
+        <h1 className="text-5xl md:text-7xl font-extrabold tracking-tight max-w-4xl leading-tight mb-6 animate-in fade-in slide-in-from-bottom-6 duration-700">
+          Absolute privacy for your <span className="text-transparent bg-clip-text bg-gradient-to-r from-accent to-blue-400">digital assets.</span>
         </h1>
-        <p className="mt-6 text-lg md:text-xl text-foreground/70 max-w-2xl">
-          An enterprise-grade, zero-knowledge password manager. Your data is encrypted locally before it ever leaves your device. Only you hold the keys.
+        
+        <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mb-10 animate-in fade-in slide-in-from-bottom-8 duration-1000">
+          A zero-knowledge password manager built for teams. Your data is encrypted locally before it ever leaves your device. We couldn't read it even if we wanted to.
         </p>
-        <div className="mt-10 flex flex-col sm:flex-row gap-4">
-          <Link href="/register" className="bg-accent hover:bg-accent-hover text-white px-8 py-3 rounded-lg font-medium text-lg transition-colors flex items-center justify-center gap-2">
-            Create your vault
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
-            </svg>
+        
+        <div className="flex flex-col sm:flex-row gap-4 animate-in fade-in zoom-in-95 duration-1000 delay-150">
+          <Link href="/register">
+            <Button size="lg" className="h-12 px-8 text-base shadow-soft group bg-accent hover:bg-accent-hover text-white border-0">
+              Create your vault
+              <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
+            </Button>
+          </Link>
+          <Link href="/login">
+            <Button variant="outline" size="lg" className="h-12 px-8 text-base">
+              Sign into existing
+            </Button>
           </Link>
         </div>
       </section>
 
       {/* How it Works */}
-      <section className="py-24 bg-surface border-t border-border/50">
-        <div className="max-w-6xl mx-auto px-4">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl font-bold tracking-tight">How Zero-Knowledge Works</h2>
-            <p className="mt-4 text-foreground/70">Three steps to absolute privacy. The server never sees your master password.</p>
+      <section className="py-32 bg-surface border-t border-border">
+        <div className="max-w-7xl mx-auto px-6 lg:px-10">
+          <div className="text-center mb-20">
+            <h2 className="text-3xl lg:text-4xl font-bold tracking-tight mb-4">How Zero-Knowledge Works</h2>
+            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+              Three steps to absolute privacy. The server never sees your master password.
+            </p>
           </div>
           
-          <div className="grid md:grid-cols-3 gap-8">
+          <div className="grid md:grid-cols-3 gap-8 lg:gap-12">
             {/* Step 1 */}
-            <div className="p-6 rounded-2xl bg-background border border-border/50 hover:border-accent/50 transition-colors group">
-              <div className="w-12 h-12 rounded-xl bg-surfaceHover flex items-center justify-center mb-6 group-hover:bg-accent/10 group-hover:text-accent transition-colors">
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
-                </svg>
+            <div className="group flex flex-col p-8 rounded-2xl bg-background border border-border shadow-sm hover:shadow-md transition-all hover:border-accent/30 relative overflow-hidden">
+              <div className="w-12 h-12 rounded-xl bg-surface flex items-center justify-center mb-8 border border-border group-hover:bg-accent/10 group-hover:border-accent/20 transition-colors">
+                <Key className="w-5 h-5 text-muted-foreground group-hover:text-accent transition-colors" />
               </div>
-              <h3 className="text-xl font-bold mb-3">1. Derive Key Locally</h3>
-              <p className="text-foreground/70 leading-relaxed">
-                Your master password is run through Argon2id right in your browser, generating a strong encryption key that never leaves your device.
+              <h3 className="text-xl font-bold mb-3">1. Local Derivation</h3>
+              <p className="text-muted-foreground leading-relaxed">
+                Your master password is run through Argon2id locally in your browser, generating a strong encryption key that never leaves your device.
               </p>
             </div>
 
             {/* Step 2 */}
-            <div className="p-6 rounded-2xl bg-background border border-border/50 hover:border-accent/50 transition-colors group">
-              <div className="w-12 h-12 rounded-xl bg-surfaceHover flex items-center justify-center mb-6 group-hover:bg-accent/10 group-hover:text-accent transition-colors">
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                </svg>
+            <div className="group flex flex-col p-8 rounded-2xl bg-background border border-border shadow-sm hover:shadow-md transition-all hover:border-accent/30 relative overflow-hidden">
+              <div className="w-12 h-12 rounded-xl bg-surface flex items-center justify-center mb-8 border border-border group-hover:bg-accent/10 group-hover:border-accent/20 transition-colors">
+                <Lock className="w-5 h-5 text-muted-foreground group-hover:text-accent transition-colors" />
               </div>
               <h3 className="text-xl font-bold mb-3">2. Encrypt Everything</h3>
-              <p className="text-foreground/70 leading-relaxed">
-                Vault items are encrypted using AES-256-GCM. What looks like sensitive data to you becomes incomprehensible ciphertext.
+              <p className="text-muted-foreground leading-relaxed">
+                Vault items are encrypted using AES-256-GCM. What looks like sensitive data to you becomes cryptographically secure ciphertext.
               </p>
             </div>
 
             {/* Step 3 */}
-            <div className="p-6 rounded-2xl bg-background border border-border/50 hover:border-accent/50 transition-colors group">
-              <div className="w-12 h-12 rounded-xl bg-surfaceHover flex items-center justify-center mb-6 group-hover:bg-accent/10 group-hover:text-accent transition-colors">
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
+            <div className="group flex flex-col p-8 rounded-2xl bg-background border border-border shadow-sm hover:shadow-md transition-all hover:border-accent/30 relative overflow-hidden">
+              <div className="w-12 h-12 rounded-xl bg-surface flex items-center justify-center mb-8 border border-border group-hover:bg-accent/10 group-hover:border-accent/20 transition-colors">
+                <Shield className="w-5 h-5 text-muted-foreground group-hover:text-accent transition-colors" />
               </div>
               <h3 className="text-xl font-bold mb-3">3. Sync Ciphertext</h3>
-              <p className="text-foreground/70 leading-relaxed">
-                Only the encrypted blobs are sent to our servers. Even if our database is compromised, your passwords remain mathematically secure.
+              <p className="text-muted-foreground leading-relaxed">
+                Only encrypted blobs are sent to our servers. Even if our database is compromised, your passwords remain mathematically secure.
               </p>
             </div>
           </div>
         </div>
       </section>
+      
+      <footer className="py-8 text-center text-sm text-muted-foreground border-t border-border bg-background">
+        &copy; {new Date().getFullYear()} Vault Password Manager. All rights reserved.
+      </footer>
     </main>
   );
 }
+
