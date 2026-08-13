@@ -14,6 +14,7 @@ import folderRoutes from "./routes/folders";
 import auditRoutes from "./routes/audit";
 import tagRoutes from "./routes/tags";
 import attachmentRoutes from "./routes/attachments";
+import orgRoutes from "./routes/orgs";
 
 const app = express();
 
@@ -39,6 +40,7 @@ app.use("/api/vault/items/:itemId/attachments", attachmentRoutes);
 app.use("/api/folders", folderRoutes);
 app.use("/api/tags", tagRoutes);
 app.use("/api/audit", auditRoutes);
+app.use("/api/orgs", orgRoutes);
 
 app.use((err: unknown, req: Request, res: Response, next: NextFunction) => {
   console.error(err);

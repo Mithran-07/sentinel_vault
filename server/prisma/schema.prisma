@@ -23,7 +23,7 @@ model User {
   kdfParallelism              Int       @default(4)
   // The Vault Key, randomly generated client-side, encrypted under the Master Key (AES-256-GCM). Opaque blob.
   encryptedVaultKeyCiphertext String
-  encryptedVaultKeyIv          String
+  encryptedVaultKeyIv         String
   // Progressive lockout tracking
   failedLoginAttempts         Int       @default(0)
   lockoutUntil                DateTime?
@@ -31,15 +31,16 @@ model User {
   lastLoginIp                 String?
   createdAt                   DateTime  @default(now())
 
-  folders       Folder[]
-  vaultItems    VaultItem[]
-  refreshTokens RefreshToken[]
-  sessions      Session[]
-  passkeys      Passkey[]
-  mfaMethods    MfaMethod[]
-  recoveryCodes RecoveryCode[]
-  auditEvents   AuditEvent[]
-  tags          Tag[]
+  folders             Folder[]
+  vaultItems          VaultItem[]
+  refreshTokens       RefreshToken[]
+  sessions            Session[]
+  passkeys            Passkey[]
+  mfaMethods          MfaMethod[]
+  recoveryCodes       RecoveryCode[]
+  auditEvents         AuditEvent[]
+  tags                Tag[]
+  organizationMembers OrganizationMember[]
 }
 
 model Session {
@@ -94,8 +95,8 @@ model MfaMethod {
   id              String    @id @default(uuid())
   userId          String
   user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  type            String    // "TOTP" | "WEBAUTHN"
-  secretEncrypted String?   // Encrypted TOTP secret
+  type            String // "TOTP" | "WEBAUTHN"
+  secretEncrypted String? // Encrypted TOTP secret
   verifiedAt      DateTime?
   createdAt       DateTime  @default(now())
 }
@@ -112,12 +113,12 @@ model RecoveryCode {
 }
 
 model Folder {
-  id             String    @id @default(uuid())
+  id             String   @id @default(uuid())
   userId         String
-  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   nameCiphertext String
   nameIv         String
-  createdAt      DateTime  @default(now())
+  createdAt      DateTime @default(now())
 
   vaultItems VaultItem[]
 }
@@ -204,4 +205,42 @@ model AuditEvent {
   prevHash  String
   hash      String
   createdAt DateTime @default(now())
+}
+
+// ── Phase 4.1 Organizations & Membership ─────────────────────────────────────
+
+model Organization {
+  id        String   @id @default(uuid())
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  members     OrganizationMember[]
+  invitations OrganizationInvitation[]
+}
+
+model OrganizationMember {
+  id        String       @id @default(uuid())
+  orgId     String
+  org       Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Transitional role before Phase 4.3 full RBAC
+  role      String       @default("MEMBER") // "OWNER" | "MEMBER"
+  status    String       @default("ACTIVE") // "ACTIVE" | "SUSPENDED" | "REMOVED"
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  @@unique([orgId, userId])
+}
+
+model OrganizationInvitation {
+  id        String       @id @default(uuid())
+  orgId     String
+  org       Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  email     String
+  tokenHash String       @unique // Secure hash of CSPRNG token
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime     @default(now())
 }
