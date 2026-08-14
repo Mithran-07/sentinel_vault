@@ -20,7 +20,7 @@ export async function createPasskeyRegistrationOptions(userId: string, email: st
     rpID: RP_ID,
     userID: Buffer.from(userId, "utf8"),
     userName: email,
-    challenge,
+    challenge: Buffer.from(challenge, "base64url"),
     excludeCredentials: existingCredentialIds.map((id) => ({
       id,
       transports: ["internal", "hybrid", "usb", "ble", "nfc"],
@@ -41,6 +41,19 @@ export async function verifyPasskeyRegistration(
   userId: string
 ): Promise<VerifiedRegistrationResponse> {
   const stored: StoredPasskeyChallenge | null = await challengeManager.consumeChallenge(challengeId);
+
+  console.log("---- WEBAUTHN REGISTRATION DIAGNOSTICS ----");
+  console.log("Submitted challengeId:", challengeId);
+  console.log("Stored challenge:", stored?.challenge);
+  if (response?.response?.clientDataJSON) {
+    try {
+      const clientData = JSON.parse(Buffer.from(response.response.clientDataJSON, 'base64url').toString('utf8'));
+      console.log("Received response challenge:", clientData.challenge);
+    } catch (e) {
+      console.log("Could not parse clientDataJSON challenge");
+    }
+  }
+  console.log("-------------------------------------------");
 
   if (!stored) {
     throw new Error("Challenge expired or invalid");
@@ -66,7 +79,7 @@ export async function createPasskeyAuthenticationOptions(userPasskeys?: Array<{ 
 
   const options = await generateAuthenticationOptions({
     rpID: RP_ID,
-    challenge,
+    challenge: Buffer.from(challenge, "base64url"),
     allowCredentials: userPasskeys
       ? userPasskeys.map((p) => ({
           id: p.credentialId,
