@@ -117,10 +117,15 @@ export default function AuditPage() {
                     <div className="flex items-center justify-between mb-1">
                       <span className="font-semibold text-sm text-foreground">{e.eventType}</span>
                     </div>
-                    <div className="flex items-center text-xs text-muted-foreground">
+                    <div className="flex items-center text-xs text-muted-foreground mb-3">
                       <Clock className="w-3 h-3 mr-1" />
                       {new Date(e.createdAt).toLocaleString()}
                     </div>
+                    {e.metadata && Object.keys(e.metadata).length > 0 && (
+                      <div className="bg-surface rounded-md p-2 border border-border/50 text-[11px] font-mono text-muted-foreground/80 overflow-x-auto">
+                        <pre>{JSON.stringify(e.metadata, null, 2)}</pre>
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}

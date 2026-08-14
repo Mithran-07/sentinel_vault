@@ -19,7 +19,7 @@ export default function Home() {
             Sign In
           </Link>
           <Link href="/register">
-            <Button className="bg-foreground text-background hover:bg-foreground/90 shadow-soft">
+            <Button size="lg" className="h-12 px-8 text-base shadow-soft bg-accent hover:bg-accent-hover text-white border-0">
               Get Started
             </Button>
           </Link>

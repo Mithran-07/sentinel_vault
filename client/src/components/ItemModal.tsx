@@ -150,7 +150,7 @@ export function ItemModal({
                   onChange={(e) => set("cvv", e.target.value)}
                   placeholder="•••"
                   maxLength={4}
-                  className="w-full rounded-lg border border-border bg-background px-4 py-2.5 font-mono text-sm text-foreground placeholder:text-foreground/40 outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-all"
+                  className="w-full rounded-lg border border-border bg-background px-4 py-2.5 font-mono text-sm text-foreground placeholder:text-foreground/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background transition-colors"
                 />
               </div>
             </div>
@@ -189,7 +189,7 @@ export function ItemModal({
                 value={String(d.key ?? "")}
                 onChange={(e) => set("key", e.target.value)}
                 placeholder="sk-..."
-                className="w-full rounded-lg border border-border bg-background px-4 py-2.5 font-mono text-sm text-foreground placeholder:text-foreground/40 outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-all"
+                className="w-full rounded-lg border border-border bg-background px-4 py-2.5 font-mono text-sm text-foreground placeholder:text-foreground/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background transition-colors"
               />
             </div>
             <Input label="API Secret (optional)" value={String(d.secret ?? "")} onChange={(v) => set("secret", v)} placeholder="Secret key or token" type="password" />
@@ -236,7 +236,7 @@ function PasswordField({ value, show, onToggleShow, onChange }: { value: string;
           type={show ? "text" : "password"}
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          className="w-full rounded-lg border border-border bg-background px-4 py-2.5 font-mono text-sm text-foreground placeholder:text-foreground/40 outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-all"
+          className="w-full rounded-lg border border-border bg-background px-4 py-2.5 font-mono text-sm text-foreground placeholder:text-foreground/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background transition-colors"
           placeholder="••••••••••••"
         />
         <button
@@ -268,7 +268,7 @@ function Input({ label, value, onChange, placeholder, type = "text", mono = fals
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className={`w-full rounded-lg border border-border bg-background px-4 py-2.5 text-sm text-foreground placeholder:text-foreground/40 outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-all ${mono ? "font-mono" : ""}`}
+        className={`w-full rounded-lg border border-border bg-background px-4 py-2.5 text-sm text-foreground placeholder:text-foreground/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background transition-colors ${mono ? "font-mono" : ""}`}
       />
     </div>
   );
@@ -286,7 +286,7 @@ function TextArea({ label, value, onChange, rows = 3, placeholder, mono = false 
         onChange={(e) => onChange(e.target.value)}
         rows={rows}
         placeholder={placeholder}
-        className={`w-full rounded-lg border border-border bg-background px-4 py-2.5 text-sm text-foreground placeholder:text-foreground/40 outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-all resize-none ${mono ? "font-mono text-xs" : ""}`}
+        className={`w-full rounded-lg border border-border bg-background px-4 py-2.5 text-sm text-foreground placeholder:text-foreground/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background transition-colors resize-none ${mono ? "font-mono text-xs" : ""}`}
       />
     </div>
   );
