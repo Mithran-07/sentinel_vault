@@ -1,6 +1,30 @@
 -- Migration for Phase 4.9 SSO Security Boundaries
 
 -- CreateTable
+CREATE TABLE "IdentityProvider" (
+    "id" TEXT NOT NULL,
+    "organizationId" TEXT NOT NULL,
+    "type" TEXT NOT NULL,
+    "isActive" BOOLEAN NOT NULL DEFAULT true,
+    "entityId" TEXT,
+    "ssoUrl" TEXT,
+    "x509Certificate" TEXT,
+    "clientId" TEXT,
+    "clientSecretCiphertext" TEXT,
+    "issuer" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "IdentityProvider_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateIndex
+CREATE UNIQUE INDEX "IdentityProvider_organizationId_key" ON "IdentityProvider"("organizationId");
+
+-- AddForeignKey
+ALTER TABLE "IdentityProvider" ADD CONSTRAINT "IdentityProvider_organizationId_fkey" FOREIGN KEY ("organizationId") REFERENCES "Organization"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- CreateTable
 CREATE TABLE "SsoIdentity" (
     "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
