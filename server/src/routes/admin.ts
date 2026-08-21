@@ -14,7 +14,7 @@ const adminRateLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: "Too many admin requests. Please try again in 1 minute." },
-  keyGenerator: (req: any) => req.userId || req.ip,
+  keyGenerator: (req: any) => req.userId || 'admin',
 });
 
 router.use(requireAuth);

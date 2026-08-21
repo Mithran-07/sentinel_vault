@@ -241,7 +241,7 @@ async function runPhase35PasskeyTests() {
   console.log("\n15. Testing Credential Ownership Isolation...");
   const user2 = await prisma.user.findUniqueOrThrow({ where: { email: emailUser2 } });
   const u2Passkeys = await prisma.passkey.findMany({ where: { userId: user2.id } });
-  if (u2Passkeys.some((p) => p.userId === user1.id)) throw new Error("Credential ownership cross-contamination!");
+  if (u2Passkeys.some((p: any) => p.userId === user1.id)) throw new Error("Credential ownership cross-contamination!");
   console.log("   ✅ Passkey credentials isolated per userId");
 
   // ── 16. Sign Counter Anomaly & Rollback Detection ──────────────────────────
@@ -336,7 +336,7 @@ async function runPhase35PasskeyTests() {
   await recordAuditEvent(user1.id, "PASSKEY_AUTHENTICATION_FAILURE", { reason: "test" });
 
   const allAudit = await prisma.auditEvent.findMany({ where: { userId: user1.id } });
-  const allTypes = allAudit.map((a) => a.eventType);
+  const allTypes = allAudit.map((a: any) => a.eventType);
   const requiredAuditTypes = [
     "PASSKEY_REGISTRATION_STARTED",
     "PASSKEY_REGISTERED",

@@ -29,7 +29,7 @@ const OLD_THRESHOLD_DAYS = 180;
 
 export default function HealthPage() {
   const router = useRouter();
-  const { vaultKey } = useVault();
+  const { vaultKey, activeWalletId } = useVault();
   const [items, setItems] = useState<HealthItem[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -38,17 +38,21 @@ export default function HealthPage() {
       router.replace("/login");
       return;
     }
-    void run();
+    if (activeWalletId) {
+      void run();
+    } else {
+      setItems([]);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [vaultKey]);
+  }, [vaultKey, activeWalletId]);
 
   async function run() {
-    if (!vaultKey) return;
+    if (!vaultKey || !activeWalletId) return;
     setLoading(true);
 
     // Everything below happens in the browser. Passwords never leave this tab —
     // reuse/weakness detection is a purely local comparison, not a server call.
-    const res = await api.get("/vault/items");
+    const res = await api.get(`/vault/items?walletId=${activeWalletId}`);
     const records: VaultItemRecord[] = await res.json();
     const decrypted = await Promise.all(
       records.map(async (r) => ({

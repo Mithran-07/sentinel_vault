@@ -201,7 +201,7 @@ router.post("/totp/authenticate", totpRateLimiter, async (req, res) => {
       },
     });
 
-    const accessToken = signAccessToken({ sub: user.id, sessionId: session.id, email: user.email });
+    const accessToken = signAccessToken({ sub: user.id, sessionId: session.id, email: user.email, isSuperAdmin: user.isSuperAdmin });
     const refreshToken = signRefreshToken(user.id, session.id, session.tokenFamily);
 
     const tokenHash = hashToken(refreshToken);

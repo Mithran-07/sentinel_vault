@@ -38,6 +38,7 @@ model User {
   ssoSubjectId                String?
 
   folders             Folder[]
+  wallets             Wallet[]
   vaultItems          VaultItem[]
   refreshTokens       RefreshToken[]
   sessions            Session[]
@@ -48,6 +49,7 @@ model User {
   auditEvents         AuditEvent[]
   tags                Tag[]
   organizationMembers OrganizationMember[]
+  sharedCredentials   SharedCredential[]
 }
 
 model Session {
@@ -130,6 +132,19 @@ model Folder {
   vaultItems VaultItem[]
 }
 
+model Wallet {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  isDefault Boolean  @default(false)
+  type      String   @default("INTERNAL") // "INTERNAL" | "EXTERNAL"
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  vaultItems VaultItem[]
+}
+
 enum VaultItemType {
   LOGIN
   SECURE_NOTE
@@ -143,6 +158,8 @@ model VaultItem {
   id                String        @id @default(uuid())
   userId            String
   user              User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  walletId          String        // Now required
+  wallet            Wallet        @relation(fields: [walletId], references: [id], onDelete: Cascade)
   folderId          String?
   folder            Folder?       @relation(fields: [folderId], references: [id], onDelete: SetNull)
   type              VaultItemType
@@ -154,9 +171,28 @@ model VaultItem {
   updatedAt         DateTime      @updatedAt
   passwordChangedAt DateTime      @default(now())
 
-  versions    VaultItemVersion[]
-  attachments Attachment[]
-  tags        ItemTag[]
+  versions          VaultItemVersion[]
+  attachments       Attachment[]
+  tags              ItemTag[]
+  sharedCredentials SharedCredential[]
+}
+
+model SharedCredential {
+  id          String    @id @default(uuid())
+  vaultItemId String
+  vaultItem   VaultItem @relation(fields: [vaultItemId], references: [id], onDelete: Cascade)
+  creatorId   String
+  creator     User      @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  ciphertext  String
+  iv          String
+  expiresAt   DateTime
+  revokedAt   DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([id])
+  @@index([creatorId])
+  @@index([vaultItemId])
+  @@index([expiresAt])
 }
 
 model VaultItemVersion {

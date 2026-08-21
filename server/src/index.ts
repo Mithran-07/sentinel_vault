@@ -11,11 +11,14 @@ import passkeyRoutes from "./routes/passkeys";
 import recoveryRoutes from "./routes/recovery";
 import vaultRoutes from "./routes/vault";
 import folderRoutes from "./routes/folders";
+import walletRoutes from "./routes/wallets";
 import auditRoutes from "./routes/audit";
 import tagRoutes from "./routes/tags";
 import attachmentRoutes from "./routes/attachments";
 import orgRoutes from "./routes/orgs";
 import ssoRoutes, { ssoAuthRouter } from "./routes/sso";
+import adminRoutes from "./routes/admin";
+import { shareRouter } from "./routes/share";
 
 const app = express();
 
@@ -40,10 +43,13 @@ app.use("/api/auth/recovery", recoveryRoutes);
 app.use("/api/vault", vaultRoutes);
 app.use("/api/vault/items/:itemId/attachments", attachmentRoutes);
 app.use("/api/folders", folderRoutes);
+app.use("/api/wallets", walletRoutes);
+app.use("/api/share", shareRouter);
 app.use("/api/tags", tagRoutes);
 app.use("/api/audit", auditRoutes);
 app.use("/api/orgs", orgRoutes);
 app.use("/api/orgs", ssoRoutes);
+app.use("/api/admin", adminRoutes);
 
 app.use((err: unknown, req: Request, res: Response, next: NextFunction) => {
   console.error(err);

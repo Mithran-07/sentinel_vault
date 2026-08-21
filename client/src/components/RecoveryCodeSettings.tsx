@@ -176,7 +176,7 @@ export function RecoveryCodeSettings() {
             <div className="flex gap-2">
               <Button
                 type="button"
-                variant="outline"
+                variant="ghost"
                 onClick={handleCopyAll}
                 className="flex-1"
               >
@@ -184,7 +184,7 @@ export function RecoveryCodeSettings() {
               </Button>
               <Button
                 type="button"
-                variant="outline"
+                variant="ghost"
                 onClick={handleDownloadTxt}
                 className="flex-1"
               >

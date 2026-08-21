@@ -178,4 +178,25 @@ export async function decryptFile(encryptedBytes: Uint8Array, iv: string, vaultK
 }
 
 // Re-export encoding helpers for use in attachment UI components.
-export { bytesToBase64, base64ToBytes };
+export { bytesToHex, hexToBytes, bytesToBase64, base64ToBytes };
+
+/** Generates a fresh 256-bit CSPRNG share key for time-limited sharing. */
+export function generateShareKey(): Uint8Array {
+  return crypto.getRandomValues(new Uint8Array(32));
+}
+
+/** Exports the share key to a URL-safe base64url format for the URL fragment. */
+export function exportShareSecret(key: Uint8Array): string {
+  // Convert standard base64 to base64url
+  return bytesToBase64(key).replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
+}
+
+/** Imports the base64url share secret back into a Uint8Array. */
+export function importShareSecret(secret: string): Uint8Array {
+  // Pad and convert base64url back to standard base64
+  let b64 = secret.replace(/-/g, "+").replace(/_/g, "/");
+  while (b64.length % 4) {
+    b64 += "=";
+  }
+  return base64ToBytes(b64);
+}

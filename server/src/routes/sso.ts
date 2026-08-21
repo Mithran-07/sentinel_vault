@@ -443,7 +443,7 @@ async function processSsoUser(subject: string, email: string, providerId: string
     }
   });
 
-  const accessToken = signAccessToken({ sub: user.id, sessionId: session.id, isSuperAdmin: user.isSuperAdmin });
+  const accessToken = signAccessToken({ sub: user.id, sessionId: session.id, email: user.email, isSuperAdmin: user.isSuperAdmin });
   const refreshTokenStr = signRefreshToken(user.id, session.id, tokenFamily);
   const hash = crypto.createHash("sha256").update(refreshTokenStr).digest("hex");
   

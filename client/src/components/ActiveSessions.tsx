@@ -98,8 +98,8 @@ export function ActiveSessions() {
         </div>
         {sessions.length > 1 && (
           <Button
-            variant="destructive"
-            size="sm"
+            variant="danger"
+            
             onClick={handleLogoutAllOthers}
           >
             Logout All Other Devices
@@ -152,8 +152,8 @@ export function ActiveSessions() {
               </div>
 
               <Button
-                variant="outline"
-                size="sm"
+                variant="ghost"
+                
                 disabled={revokingId === s.id}
                 onClick={() => handleRevoke(s.id, s.isCurrent)}
                 className="hover:text-red-400 hover:border-red-500/30"

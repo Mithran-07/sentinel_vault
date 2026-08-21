@@ -92,6 +92,13 @@ router.post("/register", async (req, res) => {
       encryptedVaultKeyIv: data.encryptedVaultKeyIv,
       lastLoginAt: new Date(),
       lastLoginIp: req.ip,
+      wallets: {
+        create: {
+          name: "Personal",
+          isDefault: true,
+          type: "INTERNAL"
+        }
+      }
     },
   });
 
@@ -113,7 +120,7 @@ router.post("/register", async (req, res) => {
     },
   });
 
-  const accessToken = signAccessToken({ sub: user.id, sessionId: session.id, email: user.email });
+  const accessToken = signAccessToken({ sub: user.id, sessionId: session.id, email: user.email, isSuperAdmin: user.isSuperAdmin });
   const refreshToken = signRefreshToken(user.id, session.id, session.tokenFamily);
 
   const tokenHash = hashToken(refreshToken);
@@ -195,6 +202,9 @@ router.post("/login", authLimiter, async (req, res) => {
     }
     return res.status(401).json({ error: "Invalid email or master password" });
   }
+  if (user.isSuspended) {
+    return res.status(401).json({ error: "User is suspended. Please contact support." });
+  }
 
   // Reset lockout tracking on successful auth
   await prisma.user.update({
@@ -244,7 +254,7 @@ router.post("/login", authLimiter, async (req, res) => {
     },
   });
 
-  const accessToken = signAccessToken({ sub: user.id, sessionId: session.id, email: user.email });
+  const accessToken = signAccessToken({ sub: user.id, sessionId: session.id, email: user.email, isSuperAdmin: user.isSuperAdmin });
   const refreshToken = signRefreshToken(user.id, session.id, session.tokenFamily);
 
   const tokenHash = hashToken(refreshToken);
@@ -380,7 +390,7 @@ router.post("/refresh", async (req, res) => {
       data: { lastTokenHash: newHash, lastActiveAt: new Date() },
     });
 
-    const newAccessToken = signAccessToken({ sub: user.id, sessionId: payload.sessionId, email: user.email });
+    const newAccessToken = signAccessToken({ sub: user.id, sessionId: payload.sessionId, email: user.email, isSuperAdmin: user.isSuperAdmin });
 
     await recordAuditEvent(user.id, "REFRESH_TOKEN_ROTATED", { sessionId: payload.sessionId });
 

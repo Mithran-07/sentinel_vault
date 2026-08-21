@@ -201,8 +201,8 @@ export function PasskeySettings() {
 
               <div className="flex items-center gap-2">
                 <Button
-                  variant="outline"
-                  size="sm"
+                  variant="ghost"
+                  
                   onClick={() => {
                     setEditingPasskey(pk);
                     setNewName(pk.name || "Security Key");
@@ -211,8 +211,8 @@ export function PasskeySettings() {
                   Rename
                 </Button>
                 <Button
-                  variant="outline"
-                  size="sm"
+                  variant="ghost"
+                  
                   disabled={deletingId === pk.id}
                   onClick={() => handleRemove(pk.id, pk.name)}
                   className="hover:text-red-400 hover:border-red-500/30"
@@ -247,7 +247,7 @@ export function PasskeySettings() {
               <div className="flex gap-2 pt-2">
                 <Button
                   type="button"
-                  variant="outline"
+                  variant="ghost"
                   onClick={() => setEditingPasskey(null)}
                   className="flex-1"
                 >

@@ -253,7 +253,7 @@ router.post("/verify", recoveryIpRateLimiter, async (req, res) => {
     }
 
     // Issue tokens
-    const accessToken = signAccessToken({ sub: user.id, sessionId: session.id });
+    const accessToken = signAccessToken({ sub: user.id, sessionId: session.id, email: user.email, isSuperAdmin: user.isSuperAdmin });
     const refreshTokenRaw = signRefreshToken(user.id, session.id, tokenFamily);
     const refreshTokenHash = crypto.createHash("sha256").update(refreshTokenRaw).digest("hex");
 

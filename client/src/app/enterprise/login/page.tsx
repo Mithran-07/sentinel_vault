@@ -88,11 +88,9 @@ export default function EnterpriseLoginPage() {
             </div>
           </div>
           
-          <Link href="/login" className="w-full flex">
-            <Button type="button" variant="outline" className="w-full">
-              Back to Standard Login
-            </Button>
-          </Link>
+          <Button variant="ghost" className="w-full mt-4" onClick={() => router.push("/login")}>
+            Back to Standard Login
+          </Button>
         </form>
       </div>
     </main>

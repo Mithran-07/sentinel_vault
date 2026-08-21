@@ -273,7 +273,7 @@ router.post("/authenticate/complete", authenticateRateLimiter, async (req, res) 
       });
     }
 
-    const accessToken = signAccessToken({ sub: passkey.userId, sessionId: session.id, email: passkey.user.email });
+    const accessToken = signAccessToken({ sub: passkey.userId, sessionId: session.id, email: passkey.user.email, isSuperAdmin: passkey.user.isSuperAdmin });
     const refreshToken = signRefreshToken(passkey.userId, session.id, session.tokenFamily);
 
     const tokenHash = hashToken(refreshToken);

@@ -123,7 +123,7 @@ export function MfaSettings() {
           <div>
             {enabled ? (
               <Button
-                variant="destructive"
+                variant="danger"
                 onClick={() => setDisableModalOpen(true)}
               >
                 Disable MFA
@@ -187,7 +187,7 @@ export function MfaSettings() {
                 <div className="flex gap-3 pt-2">
                   <Button
                     type="button"
-                    variant="outline"
+                    variant="ghost"
                     onClick={() => setSetupModalOpen(false)}
                     className="flex-1"
                   >
@@ -240,7 +240,7 @@ export function MfaSettings() {
               <div className="flex gap-3 pt-2">
                 <Button
                   type="button"
-                  variant="outline"
+                  variant="ghost"
                   onClick={() => setDisableModalOpen(false)}
                   className="flex-1"
                 >
@@ -248,7 +248,7 @@ export function MfaSettings() {
                 </Button>
                 <Button
                   type="submit"
-                  variant="destructive"
+                  variant="danger"
                   disabled={disableBusy || disableCode.length !== 6}
                   className="flex-1"
                 >

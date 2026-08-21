@@ -15,6 +15,7 @@ const itemSchema = z.object({
   type: z.enum(VAULT_ITEM_TYPES),
   ciphertext: z.string().min(1),
   iv: z.string().min(1),
+  walletId: z.string().uuid().optional(),
   folderId: z.string().uuid().nullable().optional(),
   favorite: z.boolean().optional(),
   passwordChangedAt: z.string().datetime().optional(),
@@ -24,12 +25,20 @@ const itemSchema = z.object({
 // Supports:
 //   ?since=ISO   — sync: return only items updated after this timestamp
 //   ?deleted=true — return trashed items instead of active items
+//   ?walletId=UUID — filter by specific wallet
 // Client decrypts all ciphertext locally — server never reads item contents.
 router.get("/items", async (req: AuthedRequest, res) => {
   const since = req.query.since ? new Date(req.query.since as string) : undefined;
   const deleted = req.query.deleted === "true";
+  const walletId = req.query.walletId as string | undefined;
 
   const where: Record<string, unknown> = { userId: req.userId };
+
+  if (walletId) {
+    const wallet = await prisma.wallet.findFirst({ where: { id: walletId, userId: req.userId } });
+    if (!wallet) return res.status(403).json({ error: "Access denied to requested wallet" });
+    where.walletId = walletId;
+  }
 
   if (deleted) {
     where.deletedAt = { not: null };
@@ -57,10 +66,22 @@ router.post("/items", async (req: AuthedRequest, res) => {
   const parsed = itemSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
 
+  let targetWalletId = parsed.data.walletId;
+  if (targetWalletId) {
+    const wallet = await prisma.wallet.findFirst({ where: { id: targetWalletId, userId: req.userId } });
+    if (!wallet) return res.status(403).json({ error: "Access denied to target wallet" });
+  } else {
+    const defaultWallet = await prisma.wallet.findFirst({
+      where: { userId: req.userId, isDefault: true }
+    });
+    if (!defaultWallet) return res.status(500).json({ error: "No default wallet found" });
+    targetWalletId = defaultWallet.id;
+  }
+
   const item = await prisma.vaultItem.create({
-    data: { ...parsed.data, userId: req.userId! },
+    data: { ...parsed.data, userId: req.userId!, walletId: targetWalletId },
   });
-  await recordAuditEvent(req.userId!, "VAULT_ITEM_CREATED", { itemId: item.id, type: item.type });
+  await recordAuditEvent(req.userId!, "VAULT_ITEM_CREATED", { itemId: item.id, type: item.type, walletId: targetWalletId });
   res.status(201).json(item);
 });
 
@@ -73,6 +94,11 @@ router.put("/items/:id", async (req: AuthedRequest, res) => {
     where: { id: req.params.id, userId: req.userId, deletedAt: null },
   });
   if (!existing) return res.status(404).json({ error: "Not found" });
+
+  if (parsed.data.walletId && parsed.data.walletId !== existing.walletId) {
+    const targetWallet = await prisma.wallet.findFirst({ where: { id: parsed.data.walletId, userId: req.userId } });
+    if (!targetWallet) return res.status(403).json({ error: "Access denied to target wallet" });
+  }
 
   // Snapshot the current version before overwriting.
   await prisma.vaultItemVersion.create({
@@ -87,7 +113,7 @@ router.put("/items/:id", async (req: AuthedRequest, res) => {
     where: { id: existing.id },
     data: parsed.data,
   });
-  await recordAuditEvent(req.userId!, "VAULT_ITEM_UPDATED", { itemId: item.id });
+  await recordAuditEvent(req.userId!, "VAULT_ITEM_UPDATED", { itemId: item.id, walletId: item.walletId });
   res.json(item);
 });
 

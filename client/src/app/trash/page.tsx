@@ -2,11 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { useVault } from "@/context/VaultContext";
 import { decryptItem } from "@/lib/crypto";
 import { api } from "@/lib/api";
-import { ItemPayload, TYPE_LABELS, TYPE_ICONS, ItemType } from "@/components/ItemModal";
+import { ItemPayload, TYPE_LABELS, ItemType } from "@/components/ItemModal";
+import { AppShell } from "@/components/AppShell";
+import { Button } from "@/components/ui/Button";
+import { Trash2, Key, CreditCard, FileText, Lock, Info, RotateCcw } from "lucide-react";
 
 interface VaultItemRecord {
   id: string;
@@ -25,30 +27,41 @@ interface DecryptedItem {
 
 export default function TrashPage() {
   const router = useRouter();
-  const { vaultKey } = useVault();
+  const { vaultKey, activeWalletId } = useVault();
   const [items, setItems] = useState<DecryptedItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     if (!vaultKey) { router.replace("/login"); return; }
-    void loadTrash();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [vaultKey]);
+    if (activeWalletId) {
+      void loadTrash();
+    } else {
+      setItems([]);
+      setLoading(false);
+    }
+  }, [vaultKey, activeWalletId, router]);
 
   async function loadTrash() {
-    if (!vaultKey) return;
+    if (!vaultKey || !activeWalletId) return;
     setLoading(true);
-    const res = await api.get("/vault/items?deleted=true");
-    const records: VaultItemRecord[] = await res.json();
-    const decrypted = await Promise.all(
-      records.map(async (r) => ({
-        id: r.id,
-        deletedAt: r.deletedAt,
-        data: await decryptItem<ItemPayload>({ ciphertext: r.ciphertext, iv: r.iv }, vaultKey),
-      }))
-    );
-    setItems(decrypted);
-    setLoading(false);
+    try {
+      const res = await api.get(`/vault/items?deleted=true&walletId=${activeWalletId}`);
+      const records: VaultItemRecord[] = await res.json();
+      const decrypted = await Promise.all(
+        records.map(async (r) => ({
+          id: r.id,
+          deletedAt: r.deletedAt,
+          data: await decryptItem<ItemPayload>({ ciphertext: r.ciphertext, iv: r.iv }, vaultKey),
+        }))
+      );
+      setItems(decrypted);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function handleRestore(id: string, name: string) {
@@ -57,104 +70,138 @@ export default function TrashPage() {
     await loadTrash();
   }
 
-  async function handlePermanentDelete(id: string, name: string) {
-    if (!window.confirm(`Permanently delete "${name}"? This CANNOT be undone.`)) return;
-    await api.del(`/vault/items/${id}/permanent`);
-    await loadTrash();
+  function handleDeleteClick(id: string) {
+    setDeleteConfirmId(id);
+  }
+
+  async function confirmDelete() {
+    if (!deleteConfirmId) return;
+    setIsDeleting(true);
+    try {
+      await api.del(`/vault/items/${deleteConfirmId}/permanent`);
+      await loadTrash();
+    } finally {
+      setIsDeleting(false);
+      setDeleteConfirmId(null);
+    }
   }
 
   return (
-    <div className="min-h-screen bg-background flex flex-col md:flex-row">
-      {/* Sidebar */}
-      <aside className="w-full md:w-64 border-r border-border/50 bg-surface flex-shrink-0 flex flex-col sticky top-0 md:h-screen">
-        <div className="p-6 border-b border-border/50">
-          <div className="flex items-center gap-2 mb-6">
-            <div className="w-8 h-8 rounded bg-accent flex items-center justify-center shadow-lg shadow-accent/20">
-              <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-              </svg>
+    <AppShell pageTitle="Trash">
+      <div className="max-w-5xl mx-auto">
+        <div className="mb-8">
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-start gap-3 mt-4">
+            <Info className="text-amber-500 mt-0.5 shrink-0" size={20} />
+            <div>
+              <p className="text-[14px] text-amber-900 font-medium">Items in trash are deleted forever after 30 days.</p>
+              <p className="text-[14px] text-amber-700 mt-1">You can restore them before they are permanently purged.</p>
             </div>
-            <span className="text-xl font-bold tracking-tight">Vault</span>
           </div>
         </div>
-        <nav className="flex-1 p-4 space-y-1">
-          <Link href="/vault" className="flex items-center gap-3 px-3 py-2 rounded-lg text-foreground/70 hover:bg-surfaceHover hover:text-foreground transition-colors">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" /></svg>
-            All Items
-          </Link>
-          <Link href="/trash" className="flex items-center gap-3 px-3 py-2 rounded-lg bg-accent/10 text-accent font-medium transition-colors">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-            Trash
-          </Link>
-          <Link href="/health" className="flex items-center gap-3 px-3 py-2 rounded-lg text-foreground/70 hover:bg-surfaceHover hover:text-foreground transition-colors">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
-            Security Health
-          </Link>
-          <Link href="/audit" className="flex items-center gap-3 px-3 py-2 rounded-lg text-foreground/70 hover:bg-surfaceHover hover:text-foreground transition-colors">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg>
-            Audit Log
-          </Link>
-        </nav>
-      </aside>
 
-      {/* Main */}
-      <main className="flex-1 flex flex-col min-w-0">
-        <header className="px-8 py-6 border-b border-border/50 flex items-center justify-between bg-surface/50 sticky top-0 z-10 backdrop-blur-md">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">Trash</h1>
-            <p className="text-sm text-foreground/50 mt-0.5">Items here are soft-deleted. Restore or permanently delete them.</p>
+        {loading ? (
+          <div className="flex items-center justify-center h-64 text-slate-400">
+            <svg className="animate-spin h-8 w-8 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
           </div>
-        </header>
+        ) : items.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-64 text-center max-w-md mx-auto">
+            <div className="w-16 h-16 rounded-2xl bg-surface border border-border-light shadow-sm flex items-center justify-center mb-6">
+              <Trash2 size={32} className="text-slate-400" />
+            </div>
+            <h3 className="text-[18px] font-bold text-slate-900 mb-2">Trash is empty</h3>
+            <p className="text-[14px] text-slate-500">Deleted items will appear here. They can be restored or permanently deleted.</p>
+          </div>
+        ) : (
+          <div className="bg-surface border border-border-light rounded-xl overflow-hidden shadow-sm">
+            <div className="grid grid-cols-12 gap-4 px-6 py-4 bg-slate-50 border-b border-border-light font-semibold tracking-wider text-[12px] text-slate-500 uppercase">
+              <div className="col-span-5">Name</div>
+              <div className="col-span-3">Deleted Date</div>
+              <div className="col-span-4 text-right">Actions</div>
+            </div>
 
-        <div className="flex-1 p-8 overflow-y-auto">
-          {loading ? (
-            <div className="flex items-center justify-center h-64 text-foreground/50">
-              <svg className="animate-spin h-8 w-8 text-accent" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-            </div>
-          ) : items.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-64 text-center">
-              <div className="w-16 h-16 rounded-2xl bg-surface flex items-center justify-center mb-4 border border-border">
-                <svg className="w-8 h-8 text-foreground/30" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-              </div>
-              <h3 className="text-lg font-semibold mb-2">Trash is empty</h3>
-              <p className="text-foreground/60 text-sm">Deleted items will appear here. They can be restored or permanently deleted.</p>
-            </div>
-          ) : (
-            <div className="grid gap-3">
+            <div className="divide-y divide-border-light">
               {items.map((item) => (
-                <div key={item.id} className="flex flex-col sm:flex-row sm:items-center justify-between rounded-xl border border-border bg-surface p-4 opacity-80">
-                  <div className="flex items-center gap-4 mb-4 sm:mb-0">
-                    <div className="w-10 h-10 rounded-lg bg-background border border-border flex items-center justify-center text-lg shrink-0">
-                      {TYPE_ICONS[item.data.type as ItemType] ?? "📄"}
+                <div key={item.id} className="grid grid-cols-1 sm:grid-cols-12 gap-4 px-6 py-4 items-center opacity-75 hover:opacity-100 hover:bg-slate-50 transition-all group">
+                  <div className="sm:col-span-5 flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center shrink-0">
+                      {item.data.type === "LOGIN" ? <Key className="text-slate-400" size={20} /> : 
+                       item.data.type === "CARD" ? <CreditCard className="text-slate-400" size={20} /> : 
+                       item.data.type === "SECURE_NOTE" ? <FileText className="text-slate-400" size={20} /> : 
+                       <Lock className="text-slate-400" size={20} />}
                     </div>
-                    <div className="min-w-0">
-                      <p className="font-medium text-foreground truncate">{item.data.name}</p>
-                      <p className="text-xs text-foreground/50">
-                        {TYPE_LABELS[item.data.type as ItemType]} · Deleted {new Date(item.deletedAt).toLocaleDateString()}
-                      </p>
+                    <div className="truncate">
+                      <div className="text-[16px] font-medium text-slate-700 line-through truncate">
+                        {item.data.name}
+                      </div>
+                      <div className="text-[14px] text-slate-500 truncate">
+                        {TYPE_LABELS[item.data.type as ItemType]}
+                      </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <button
+                  
+                  <div className="sm:col-span-3">
+                    <div className="text-[14px] text-slate-600">{new Date(item.deletedAt).toLocaleDateString()}</div>
+                  </div>
+                  
+                  <div className="sm:col-span-4 flex justify-end gap-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                    <Button
+                      variant="ghost"
                       onClick={() => handleRestore(item.id, item.data.name)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-accent/10 border border-accent/20 text-xs font-medium text-accent hover:bg-accent/20 transition-colors"
+                      className="h-9 px-3"
                     >
-                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" /></svg>
+                      <RotateCcw size={16} className="mr-1.5" />
                       Restore
-                    </button>
-                    <button
-                      onClick={() => handlePermanentDelete(item.id, item.data.name)}
-                      className="px-3 py-1.5 rounded-md bg-background border border-border text-xs font-medium text-red-400 hover:text-red-300 hover:border-red-500/30 transition-colors"
+                    </Button>
+                    <Button
+                      variant="dangerGhost"
+                      onClick={() => handleDeleteClick(item.id)}
+                      className="h-9 px-3"
                     >
-                      Delete Forever
-                    </button>
+                      <Trash2 size={16} className="mr-1.5" />
+                      Delete
+                    </Button>
                   </div>
                 </div>
               ))}
             </div>
-          )}
+          </div>
+        )}
+      </div>
+
+      {/* Delete Modal */}
+      {deleteConfirmId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in">
+          <div className="w-full max-w-sm bg-white border border-border-light rounded-[20px] shadow-xl overflow-hidden">
+            <div className="p-6 text-center">
+              <div className="w-16 h-16 rounded-full bg-danger-bg text-danger flex items-center justify-center mx-auto mb-4 border border-danger-border">
+                <Trash2 size={32} />
+              </div>
+              <h2 className="text-[20px] font-bold text-slate-900 mb-2">Permanently delete?</h2>
+              <p className="text-[14px] text-slate-500 mb-6">
+                This action cannot be undone. The credential will be permanently removed from your vault.
+              </p>
+              <div className="flex flex-col gap-3">
+                <Button
+                  onClick={confirmDelete}
+                  disabled={isDeleting}
+                  variant="danger"
+                  className="w-full h-11"
+                >
+                  {isDeleting ? "Deleting..." : "Delete Forever"}
+                </Button>
+                <Button
+                  onClick={() => setDeleteConfirmId(null)}
+                  disabled={isDeleting}
+                  variant="ghost"
+                  className="w-full h-11"
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          </div>
         </div>
-      </main>
-    </div>
+      )}
+    </AppShell>
   );
 }

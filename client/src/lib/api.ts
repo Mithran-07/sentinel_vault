@@ -58,3 +58,18 @@ export const api = {
   get: (path: string) => request(path),
   del: (path: string, body?: unknown) => request(path, { method: "DELETE", body: body !== undefined ? JSON.stringify(body) : undefined }),
 };
+
+export interface Wallet {
+  id: string;
+  name: string;
+  isDefault: boolean;
+  type: string;
+  _count?: { vaultItems: number };
+}
+
+export const walletApi = {
+  list: () => api.get("/wallets").then(res => res.json() as Promise<Wallet[]>),
+  create: (name: string, type: string) => api.post("/wallets", { name, type }).then(res => res.json() as Promise<Wallet>),
+  update: (id: string, name: string) => api.put(`/wallets/${id}`, { name }).then(res => res.json() as Promise<Wallet>),
+  delete: (id: string) => api.del(`/wallets/${id}`),
+};
