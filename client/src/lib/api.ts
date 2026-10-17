@@ -4,14 +4,19 @@ function getAccessToken(): string | null {
   return typeof window !== "undefined" ? sessionStorage.getItem("accessToken") : null;
 }
 
-export function setTokens(accessToken: string, refreshToken?: string) {
+export function setTokens(accessToken: string, _legacyRefreshToken?: string) {
   sessionStorage.setItem("accessToken", accessToken);
-  if (refreshToken) localStorage.setItem("refreshToken", refreshToken);
+  // Security: Do NOT persist refresh token to localStorage. Refresh token is transported exclusively via HttpOnly cookie.
+  if (typeof window !== "undefined") {
+    localStorage.removeItem("refreshToken");
+  }
 }
 
 export function clearTokens() {
-  sessionStorage.removeItem("accessToken");
-  localStorage.removeItem("refreshToken");
+  if (typeof window !== "undefined") {
+    sessionStorage.removeItem("accessToken");
+    localStorage.removeItem("refreshToken");
+  }
 }
 
 async function request(path: string, options: RequestInit = {}, retry = true): Promise<Response> {
@@ -21,6 +26,7 @@ async function request(path: string, options: RequestInit = {}, retry = true): P
     credentials: "include",
     headers: {
       "Content-Type": "application/json",
+      "X-Requested-With": "SentinelVault",
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...options.headers,
     },
@@ -34,19 +40,23 @@ async function request(path: string, options: RequestInit = {}, retry = true): P
 }
 
 async function tryRefresh(): Promise<boolean> {
-  const refreshToken = typeof window !== "undefined" ? localStorage.getItem("refreshToken") : null;
-  const res = await fetch(`${API_BASE}/auth/refresh`, {
-    method: "POST",
-    credentials: "include",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ refreshToken }),
-  });
-  if (!res.ok) return false;
-  const data = await res.json();
-  if (data.accessToken) {
-    sessionStorage.setItem("accessToken", data.accessToken);
-    if (data.refreshToken) localStorage.setItem("refreshToken", data.refreshToken);
-    return true;
+  try {
+    const res = await fetch(`${API_BASE}/auth/refresh`, {
+      method: "POST",
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Requested-With": "SentinelVault",
+      },
+    });
+    if (!res.ok) return false;
+    const data = await res.json();
+    if (data.accessToken) {
+      sessionStorage.setItem("accessToken", data.accessToken);
+      return true;
+    }
+  } catch {
+    return false;
   }
   return false;
 }

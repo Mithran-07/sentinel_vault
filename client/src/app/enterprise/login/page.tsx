@@ -5,8 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
-import { Building2, AlertCircle } from "lucide-react";
+import { Building2, AlertCircle, Shield, ArrowRight, ArrowLeft } from "lucide-react";
 
 export default function EnterpriseLoginPage() {
   const router = useRouter();
@@ -23,7 +22,7 @@ export default function EnterpriseLoginPage() {
       
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
-        throw new Error(body.error || "SSO login unavailable for this email");
+        throw new Error(body.error || "SSO login unavailable for this email domain");
       }
       
       const data = await res.json();
@@ -41,56 +40,69 @@ export default function EnterpriseLoginPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-background px-4 py-12 animate-in fade-in zoom-in-95 duration-500">
-      <div className="w-full max-w-sm">
-        <div className="text-center mb-8">
-          <Link href="/" className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-accent mb-6 shadow-soft transition-transform hover:scale-105">
-            <Building2 className="w-6 h-6 text-white" />
+    <main className="min-h-screen flex items-center justify-center bg-canvas px-4 py-12 relative overflow-hidden">
+      {/* Background cyber grid */}
+      <div className="absolute inset-0 grid-bg opacity-40 pointer-events-none" />
+      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-accent/5 rounded-full blur-3xl pointer-events-none" />
+
+      <div className="w-full max-w-sm relative z-10">
+        <div className="text-center mb-6">
+          <Link
+            href="/"
+            className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-surface-2 border border-accent/40 text-accent mb-4 shadow-[0_0_20px_-3px_rgb(var(--c-accent)/0.35)]"
+          >
+            <Building2 className="w-6 h-6" />
           </Link>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground">Enterprise Sign-In</h1>
-          <p className="mt-2 text-sm text-muted-foreground">Sign in with your organizational identity</p>
+          <div className="eyebrow mb-1">ENTERPRISE FEDERATION</div>
+          <h1 className="font-display text-2xl font-bold tracking-tight text-fg">
+            Corporate Single Sign-On
+          </h1>
+          <p className="mt-1.5 text-xs text-fg-muted">
+            Authenticate via your organization&apos;s identity provider (Okta, Entra ID, Google)
+          </p>
         </div>
 
-        <form onSubmit={onSubmit} className="space-y-6 rounded-2xl border border-border bg-surface p-8 shadow-sm">
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-foreground">Work Email</label>
-            <Input
+        <form onSubmit={onSubmit} className="panel p-6 sm:p-7 space-y-4 shadow-pop bg-surface">
+          <div>
+            <label className="label">Work Email Address *</label>
+            <input
               required
               type="email"
               value={identifier}
               onChange={(e) => setIdentifier(e.target.value)}
-              placeholder="name@company.com"
-              className="bg-background"
+              placeholder="employee@company.com"
+              className="field"
+              disabled={busy}
             />
           </div>
 
           {error && (
-            <div className="rounded-md bg-destructive/10 border border-destructive/20 p-3 text-sm text-destructive flex items-start gap-2 animate-in slide-in-from-top-1">
+            <div className="rounded-xl bg-danger/10 border border-danger/30 p-3 text-xs text-danger flex items-start gap-2">
               <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
               <span>{error}</span>
             </div>
           )}
 
-          <Button
-            type="submit"
-            isLoading={busy}
-            className="w-full bg-accent hover:bg-accent-hover text-white shadow-soft"
-          >
-            Continue with SSO
+          <Button type="submit" variant="primary" className="w-full h-11" isLoading={busy}>
+            <span>Continue with SSO</span>
+            {!busy && <ArrowRight size={16} className="ml-1.5" />}
           </Button>
-          
-          <div className="relative my-4">
+
+          <div className="relative py-2">
             <div className="absolute inset-0 flex items-center">
-              <span className="w-full border-t border-border" />
+              <span className="w-full border-t border-line" />
             </div>
-            <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-surface px-2 text-muted-foreground">Or</span>
+            <div className="relative flex justify-center text-[10px] uppercase font-mono">
+              <span className="bg-surface px-2 text-fg-subtle">Or</span>
             </div>
           </div>
-          
-          <Button variant="ghost" className="w-full mt-4" onClick={() => router.push("/login")}>
-            Back to Standard Login
-          </Button>
+
+          <Link href="/login" className="block">
+            <Button variant="ghost" className="w-full">
+              <ArrowLeft size={14} className="mr-1.5" />
+              <span>Back to Master Password Login</span>
+            </Button>
+          </Link>
         </form>
       </div>
     </main>

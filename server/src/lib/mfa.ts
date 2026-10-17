@@ -2,6 +2,8 @@ import { generateSecret, generateURI, verifySync } from "otplib";
 import qrcode from "qrcode";
 import crypto from "crypto";
 
+import { getEnvConfig } from "../config/env";
+
 export interface EncryptedSecretPayload {
   ciphertext: string;
   iv: string;
@@ -20,8 +22,8 @@ export interface SecretProtectionProvider {
  */
 export class DevSecretProtectionProvider implements SecretProtectionProvider {
   private getKey(): Buffer {
-    const rawSecret = process.env.MFA_ENCRYPTION_SECRET || "development_mfa_secret_key_32bytes_len!!";
-    return crypto.createHash("sha256").update(rawSecret).digest(); // 256-bit key
+    const { MFA_ENCRYPTION_SECRET } = getEnvConfig();
+    return crypto.createHash("sha256").update(MFA_ENCRYPTION_SECRET).digest(); // 256-bit key
   }
 
   async encryptSecret(plaintext: string): Promise<EncryptedSecretPayload> {
@@ -78,15 +80,22 @@ export function verifyTotpCode(secret: string, code: string): boolean {
   }
 }
 
-// Single-use set for MFA challenge JTI tracking (in-memory replay prevention)
-const usedMfaChallengeJtis = new Set<string>();
+import { getChallengeStore } from "./challenge-store";
 
-export function isMfaChallengeJtiUsed(jti: string): boolean {
-  return usedMfaChallengeJtis.has(jti);
+/**
+ * Atomically consumes an MFA challenge JTI to prevent replay attacks.
+ * Returns true if the token was successfully claimed for the first time.
+ * Returns false if already redeemed or expired.
+ */
+export async function consumeMfaChallengeJti(jti: string, ttlSeconds: number): Promise<boolean> {
+  const store = getChallengeStore();
+  return store.consumeJti(jti, ttlSeconds);
 }
 
-export function markMfaChallengeJtiUsed(jti: string) {
-  usedMfaChallengeJtis.add(jti);
-  // Auto-cleanup after 10 minutes
-  setTimeout(() => usedMfaChallengeJtis.delete(jti), 10 * 60 * 1000);
+export function isMfaChallengeJtiUsed(_jti: string): boolean {
+  return false;
+}
+
+export function markMfaChallengeJtiUsed(_jti: string): void {
+  // Deprecated no-op
 }

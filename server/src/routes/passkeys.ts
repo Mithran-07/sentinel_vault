@@ -36,15 +36,7 @@ const managementRateLimiter = rateLimit({
   message: { error: "Too many passkey management requests. Try again in 15 minutes." },
 });
 
-function setRefreshCookie(res: Response, token: string) {
-  res.cookie("refreshToken", token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    path: "/api/auth",
-    maxAge: 30 * 24 * 60 * 60 * 1000,
-  });
-}
+import { setRefreshCookie } from "../lib/cookies";
 
 function hashToken(token: string): string {
   return crypto.createHash("sha256").update(token).digest("hex");
@@ -297,7 +289,6 @@ router.post("/authenticate/complete", authenticateRateLimiter, async (req, res) 
     setRefreshCookie(res, refreshToken);
     res.json({
       accessToken,
-      refreshToken,
       kdf: {
         salt: passkey.user.kdfSalt,
         memoryKb: passkey.user.kdfMemoryKb,

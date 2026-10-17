@@ -6,6 +6,9 @@ const tsJestTransformCfg = createDefaultPreset().transform;
 module.exports = {
   testEnvironment: "node",
   transform: {
-    ...tsJestTransformCfg,
+    "^.+\\.[tj]sx?$": ["ts-jest", { tsconfig: { allowJs: true } }],
   },
+  transformIgnorePatterns: [
+    "node_modules/(?!(@scure|@noble)/)",
+  ],
 };

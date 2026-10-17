@@ -1,9 +1,14 @@
 import "express-async-errors";
 import "dotenv/config";
+import { getEnvConfig } from "./config/env";
 import express, { Request, Response, NextFunction } from "express";
 import cors from "cors";
 import helmet from "helmet";
 import cookieParser from "cookie-parser";
+
+// Validate mandatory environment variables before mounting routes
+const env = getEnvConfig();
+
 import authRoutes from "./routes/auth";
 import sessionRoutes from "./routes/sessions";
 import mfaRoutes from "./routes/mfa";
@@ -19,14 +24,32 @@ import orgRoutes from "./routes/orgs";
 import ssoRoutes, { ssoAuthRouter } from "./routes/sso";
 import adminRoutes from "./routes/admin";
 import { shareRouter } from "./routes/share";
+import { errorHandler } from "./middleware/errorHandler";
+import { logger } from "./lib/logger";
 
 const app = express();
 
-app.use(helmet());
+app.disable("x-powered-by");
+
+app.use(
+  helmet({
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+    frameguard: { action: "deny" },
+    hidePoweredBy: true,
+    hsts: {
+      maxAge: 31536000,
+      includeSubDomains: true,
+    },
+    noSniff: true,
+    referrerPolicy: { policy: "strict-origin-when-cross-origin" },
+  })
+);
 app.use(
   cors({
-    origin: process.env.CLIENT_ORIGIN || "http://localhost:3000",
+    origin: env.CLIENT_ORIGIN,
     credentials: true,
+    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
   })
 );
 app.use(cookieParser());
@@ -51,19 +74,10 @@ app.use("/api/orgs", orgRoutes);
 app.use("/api/orgs", ssoRoutes);
 app.use("/api/admin", adminRoutes);
 
-app.use((err: unknown, req: Request, res: Response, next: NextFunction) => {
-  console.error(err);
+// Centralized production-hardened error handler
+app.use(errorHandler);
 
-  // Prisma unique constraint violation (e.g. duplicate email on register)
-  if (typeof err === "object" && err !== null && "code" in err && (err as any).code === "P2002") {
-    return res.status(409).json({ error: "A record with this value already exists" });
-  }
-
-  if (res.headersSent) return next(err);
-  res.status(500).json({ error: "Internal server error" });
-});
-
-const port = process.env.PORT || 4000;
+const port = env.PORT;
 app.listen(port, () => {
-  console.log(`Vault server listening on :${port}`);
+  logger.info(`Vault server listening on :${port}`);
 });

@@ -1,33 +1,74 @@
 import React from "react";
 import { Loader2 } from "lucide-react";
 
-type ButtonVariant = "primary" | "ghost" | "danger" | "dangerGhost" | "indigoGhost";
+type ButtonVariant =
+  | "primary"
+  | "secondary"
+  | "ghost"
+  | "subtle"
+  | "danger"
+  | "dangerGhost"
+  | "indigoGhost";
+type ButtonSize = "xs" | "sm" | "md" | "lg" | "icon";
 
-interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: ButtonVariant;
+  size?: ButtonSize;
   isLoading?: boolean;
 }
 
-export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className = "", variant = "primary", isLoading, children, disabled, ...props }, ref) => {
-    const baseClasses = "inline-flex items-center justify-center font-semibold rounded-[10px] px-6 py-2.5 transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed text-sm";
-    
-    const variants = {
-      primary: "bg-[#4f46e5] text-white shadow-[0_4px_12px_rgba(79,70,229,0.35)] hover:bg-[#4338ca] active:bg-[#3730a3]",
-      ghost: "bg-white text-slate-600 font-medium border border-slate-200 hover:bg-slate-50 hover:border-slate-300",
-      danger: "bg-[#f43f5e] text-white shadow-[0_4px_12px_rgba(244,63,94,0.30)] hover:bg-[#e11d48]",
-      dangerGhost: "bg-white text-[#e11d48] font-medium border border-[#fecdd3] hover:bg-[#fff1f2]",
-      indigoGhost: "bg-[#eef2ff] text-[#4f46e5] font-medium border border-[#c7d2fe] hover:bg-[#e0e7ff]"
-    };
+const variants: Record<ButtonVariant, string> = {
+  primary:
+    "bg-accent text-white border border-accent/20 hover:bg-accent-strong shadow-xs active:translate-y-[0.5px]",
+  secondary:
+    "bg-surface-2 text-fg border border-line hover:border-line-strong hover:bg-surface-3 shadow-xs active:translate-y-[0.5px]",
+  ghost:
+    "bg-transparent text-fg-muted border border-line hover:text-fg hover:bg-surface-2 active:translate-y-[0.5px]",
+  subtle:
+    "bg-transparent text-fg-muted hover:text-fg hover:bg-surface-2 active:translate-y-[0.5px]",
+  danger:
+    "bg-danger text-white border border-danger/30 hover:bg-danger/90 shadow-xs active:translate-y-[0.5px]",
+  dangerGhost:
+    "bg-transparent text-danger border border-danger/30 hover:bg-danger/10 active:translate-y-[0.5px]",
+  indigoGhost:
+    "bg-accent/10 text-accent border border-accent/25 hover:bg-accent/20 active:translate-y-[0.5px]",
+};
 
+const sizes: Record<ButtonSize, string> = {
+  xs: "h-7 px-2.5 text-2xs gap-1 rounded-md",
+  sm: "h-8 px-3 text-xs gap-1.5 rounded-md",
+  md: "h-9 px-3.5 text-xs font-medium gap-1.5 rounded-md",
+  lg: "h-10 px-4 text-sm font-medium gap-2 rounded-md",
+  icon: "h-8 w-8 p-0 rounded-md shrink-0",
+};
+
+export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
+  (
+    {
+      className = "",
+      variant = "primary",
+      size = "md",
+      isLoading,
+      children,
+      disabled,
+      type = "button",
+      ...props
+    },
+    ref
+  ) => {
     return (
       <button
         ref={ref}
+        type={type}
         disabled={disabled || isLoading}
-        className={`${baseClasses} ${variants[variant]} ${className}`}
+        aria-busy={isLoading || undefined}
+        className={`inline-flex items-center justify-center font-medium whitespace-nowrap select-none
+          transition-[background-color,border-color,color,box-shadow,transform] duration-100 ease-out
+          disabled:opacity-50 disabled:pointer-events-none disabled:shadow-none
+          ${variants[variant]} ${sizes[size]} ${className}`}
         {...props}
       >
-        {isLoading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+        {isLoading && <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden />}
         {children}
       </button>
     );

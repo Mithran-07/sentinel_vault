@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { importShareSecret, decryptItem, EncryptedBlob } from "@/lib/crypto";
 import { ItemPayload, TYPE_LABELS, ItemType } from "@/components/ItemModal";
-import { Shield, ShieldCheck, AlertTriangle, Lock, Key, Copy, Check, FileText, CreditCard, Lock as LockIcon } from "lucide-react";
+import { Shield, ShieldCheck, AlertTriangle, Lock, Key, Copy, Check, FileText, CreditCard, Lock as LockIcon, ExternalLink, Clock } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { Badge } from "@/components/ui/Badge";
 
 export default function ShareRecipientPage({ params }: { params: { id: string } }) {
   const [loading, setLoading] = useState(true);
@@ -12,14 +14,14 @@ export default function ShareRecipientPage({ params }: { params: { id: string } 
   const [data, setData] = useState<ItemPayload | null>(null);
   const [expiresAt, setExpiresAt] = useState<Date | null>(null);
   const [decryptedAt] = useState(new Date());
-  const [copied, setCopied] = useState(false);
+  const [copiedField, setCopiedField] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadShare() {
       try {
         const secretBase64Url = window.location.hash.slice(1); // remove '#'
         if (!secretBase64Url) {
-          setError("Missing decryption secret in URL.");
+          setError("Missing decryption secret in URL fragment. Check that you copied the full link.");
           return;
         }
 
@@ -27,11 +29,11 @@ export default function ShareRecipientPage({ params }: { params: { id: string } 
         if (!res.ok) {
           if (res.status === 410) {
             const body = await res.json().catch(() => ({}));
-            setError(body.error || "This secure link has expired or been revoked.");
+            setError(body.error || "This secure link has expired or reached its access threshold.");
           } else if (res.status === 404) {
-            setError("Secure link not found.");
+            setError("Secure link not found or has already been revoked by the sender.");
           } else {
-            setError("Failed to load secure credential.");
+            setError("Failed to fetch encrypted payload from the server.");
           }
           return;
         }
@@ -43,10 +45,12 @@ export default function ShareRecipientPage({ params }: { params: { id: string } 
         const payload = await decryptItem<ItemPayload>(blob, shareKey);
         
         setData(payload);
-        setExpiresAt(new Date(body.expiresAt));
+        if (body.expiresAt) {
+          setExpiresAt(new Date(body.expiresAt));
+        }
       } catch (err) {
-        console.error(err);
-        setError("Unable to decrypt this secure credential.");
+        console.error("Decryption failed:", err);
+        setError("Unable to decrypt this secure credential. The link key may be corrupted or invalid.");
       } finally {
         setLoading(false);
       }
@@ -54,34 +58,40 @@ export default function ShareRecipientPage({ params }: { params: { id: string } 
     loadShare();
   }, [params.id]);
 
-  const handleCopy = (text: string) => {
+  const handleCopy = (text: string, field: string) => {
     navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    setCopiedField(field);
+    setTimeout(() => setCopiedField(null), 2000);
   };
 
   const getIcon = (type: string) => {
     switch (type) {
-      case "LOGIN": return <Key size={24} className="text-primary" />;
-      case "CARD": return <CreditCard size={24} className="text-primary" />;
-      case "SECURE_NOTE": return <FileText size={24} className="text-primary" />;
-      default: return <LockIcon size={24} className="text-primary" />;
+      case "LOGIN": return <Key size={22} className="text-accent-primary" />;
+      case "CARD": return <CreditCard size={22} className="text-accent-secondary" />;
+      case "SECURE_NOTE": return <FileText size={22} className="text-accent-primary" />;
+      default: return <LockIcon size={22} className="text-accent-primary" />;
     }
   };
 
   if (loading) {
     return (
-      <main className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
-        <div className="flex flex-col items-center gap-6 animate-in fade-in duration-500 max-w-md w-full bg-white p-[28px] rounded-[24px] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100">
-          <div className="w-16 h-16 rounded-full bg-primary-light flex items-center justify-center relative overflow-hidden shrink-0">
-            <div className="absolute inset-0 bg-primary/10 animate-pulse" />
-            <Shield className="w-8 h-8 text-primary relative z-10" />
+      <main className="min-h-screen flex items-center justify-center bg-background text-text-primary p-4 relative overflow-hidden">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(22,217,227,0.1),rgba(255,255,255,0))] pointer-events-none" />
+        
+        <div className="flex flex-col items-center gap-6 animate-in fade-in duration-500 max-w-md w-full bg-surface p-8 rounded-2xl shadow-2xl border border-border relative z-10">
+          <div className="w-16 h-16 rounded-2xl bg-accent-primary/10 border border-accent-primary/30 flex items-center justify-center relative overflow-hidden shrink-0">
+            <div className="absolute inset-0 bg-accent-primary/20 animate-ping" />
+            <Shield className="w-8 h-8 text-accent-primary relative z-10" />
           </div>
-          <div className="text-center">
-            <h2 className="text-[20px] font-bold text-slate-900 mb-2">Decrypting Credential</h2>
-            <p className="text-[14px] text-slate-500">
-              Your browser is decrypting this payload locally. The server cannot see this credential.
+          <div className="text-center space-y-2">
+            <h2 className="text-xl font-bold font-display text-text-primary">Decrypting In Browser</h2>
+            <p className="text-sm text-text-secondary leading-relaxed">
+              Fetching encrypted ciphertext and deriving key from URL hash. The server never sees the decrypted secret.
             </p>
+          </div>
+          <div className="flex items-center gap-2 text-xs font-mono text-accent-primary bg-accent-primary/5 px-3 py-1.5 rounded-full border border-accent-primary/20">
+            <Lock size={12} />
+            <span>AES-256-GCM client-side</span>
           </div>
         </div>
       </main>
@@ -90,23 +100,28 @@ export default function ShareRecipientPage({ params }: { params: { id: string } 
 
   if (error) {
     return (
-      <main className="min-h-screen flex items-center justify-center bg-slate-50 p-4 relative overflow-hidden">
-        {/* Abstract background blobs for error state */}
-        <div className="absolute top-0 right-0 w-96 h-96 bg-danger-bg rounded-full blur-[100px] opacity-60 -translate-y-1/2 translate-x-1/2 pointer-events-none"></div>
-        <div className="absolute bottom-0 left-0 w-96 h-96 bg-slate-200 rounded-full blur-[100px] opacity-40 translate-y-1/2 -translate-x-1/2 pointer-events-none"></div>
-
-        <div className="flex flex-col items-center text-center max-w-[440px] w-full bg-white border border-slate-100 rounded-[24px] p-[32px] shadow-[0_8px_30px_rgb(0,0,0,0.06)] animate-in fade-in slide-in-from-bottom-4 relative z-10">
-          <div className="w-16 h-16 rounded-full bg-danger-bg text-danger flex items-center justify-center mb-6 border-4 border-white shadow-sm">
+      <main className="min-h-screen flex items-center justify-center bg-background text-text-primary p-4 relative overflow-hidden">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(244,63,94,0.12),rgba(255,255,255,0))] pointer-events-none" />
+        
+        <div className="flex flex-col items-center text-center max-w-[460px] w-full bg-surface border border-rose-500/30 rounded-2xl p-8 shadow-2xl animate-in fade-in slide-in-from-bottom-4 relative z-10">
+          <div className="w-16 h-16 rounded-2xl bg-rose-500/10 text-rose-400 flex items-center justify-center mb-6 border border-rose-500/30">
             <AlertTriangle size={32} />
           </div>
-          <h1 className="text-[24px] font-bold text-slate-900 mb-3">Access Denied</h1>
-          <p className="text-[15px] text-slate-600 mb-8">{error}</p>
-          <div className="p-4 bg-slate-50 border border-slate-100 rounded-xl text-[13px] text-slate-500 w-full flex gap-3 text-left">
-            <Lock className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
+          <h1 className="text-2xl font-bold font-display text-text-primary mb-3">Access Denied</h1>
+          <p className="text-sm text-text-secondary mb-6 leading-relaxed">{error}</p>
+          
+          <div className="p-4 bg-surface-elevated border border-border rounded-xl text-xs text-text-secondary w-full flex gap-3 text-left mb-6">
+            <Lock className="w-4 h-4 text-accent-primary shrink-0 mt-0.5" />
             <p className="leading-relaxed">
-              This is a zero-knowledge shared credential. The link may have expired (10 min maximum), been revoked by the owner, or is missing its fragment secret.
+              Ephemeral zero-knowledge links enforce strict single-use or time expiration. The decryption key exists solely in the URL hash fragment and was never logged on any server.
             </p>
           </div>
+
+          <Link href="/">
+            <Button variant="secondary" size="md">
+              Return to Sentinel Vault
+            </Button>
+          </Link>
         </div>
       </main>
     );
@@ -115,116 +130,179 @@ export default function ShareRecipientPage({ params }: { params: { id: string } 
   if (!data) return null;
 
   return (
-    <main className="min-h-screen bg-slate-50 py-12 px-4 flex justify-center relative overflow-hidden">
-      {/* Abstract background blobs for success state */}
-      <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-primary-light rounded-full blur-[120px] opacity-60 -translate-y-1/2 translate-x-1/3 pointer-events-none"></div>
-      <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-success-bg rounded-full blur-[100px] opacity-40 translate-y-1/3 -translate-x-1/3 pointer-events-none"></div>
+    <main className="min-h-screen bg-background text-text-primary py-12 px-4 flex justify-center relative overflow-hidden">
+      {/* Background radial atmosphere */}
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(22,217,227,0.12),rgba(155,140,255,0.05),transparent)] pointer-events-none" />
+      <div className="absolute inset-0 bg-cyber-grid bg-[size:40px_40px] opacity-[0.03] pointer-events-none" />
 
-      <div className="max-w-[600px] w-full animate-in fade-in slide-in-from-bottom-4 relative z-10 mt-10">
-        
-        {/* Header */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8 bg-white p-[24px] rounded-[20px] shadow-[0_2px_10px_rgb(0,0,0,0.03)] border border-slate-100">
+      <div className="max-w-[620px] w-full animate-in fade-in slide-in-from-bottom-4 relative z-10 my-auto">
+        {/* Top Header Card */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 bg-surface/90 backdrop-blur-md p-6 rounded-2xl border border-border shadow-xl">
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-2xl bg-primary-light border border-primary/10 flex items-center justify-center text-primary shadow-sm shrink-0">
+            <div className="w-12 h-12 rounded-xl bg-accent-primary/10 border border-accent-primary/30 flex items-center justify-center text-accent-primary shrink-0">
               <ShieldCheck size={24} />
             </div>
             <div>
-              <h1 className="text-[20px] font-bold text-slate-900">Sentinel Vault</h1>
-              <p className="text-[13px] font-semibold tracking-wider uppercase text-success flex items-center gap-1.5 mt-1">
-                <Lock size={14} /> End-to-end encrypted
+              <div className="flex items-center gap-2">
+                <h1 className="text-lg font-bold font-display text-text-primary tracking-tight">Sentinel Vault</h1>
+                <Badge variant="success" size="sm">Decrypted</Badge>
+              </div>
+              <p className="text-xs text-accent-positive flex items-center gap-1.5 mt-0.5 font-mono">
+                <Lock size={12} /> End-to-end zero-knowledge
               </p>
             </div>
           </div>
+          
           {expiresAt && (
-            <div className="px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-[13px] font-medium text-slate-600 flex items-center gap-2 self-start md:self-auto shrink-0">
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-warning opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-warning"></span>
-              </span>
-              Valid until {expiresAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            <div className="px-3.5 py-1.5 bg-surface-elevated border border-border rounded-lg text-xs font-mono text-text-secondary flex items-center gap-2 self-start sm:self-auto shrink-0">
+              <Clock size={13} className="text-amber-400" />
+              <span>Expires {expiresAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
             </div>
           )}
         </div>
 
         {/* Content Card */}
-        <div className="bg-white border border-border-light shadow-[0_8px_30px_rgb(0,0,0,0.06)] rounded-[24px] overflow-hidden">
-          
-          <div className="px-[32px] py-6 border-b border-border-light bg-slate-50/50 flex items-center gap-5">
-            <div className="w-14 h-14 rounded-2xl bg-white border border-border-light flex items-center justify-center shadow-sm shrink-0">
+        <div className="bg-surface border border-border shadow-2xl rounded-2xl overflow-hidden backdrop-blur-md">
+          {/* Header Banner */}
+          <div className="px-6 py-5 border-b border-border bg-surface-elevated/60 flex items-center gap-4">
+            <div className="w-12 h-12 rounded-xl bg-surface border border-border flex items-center justify-center shadow-inner shrink-0">
               {getIcon(data.type)}
             </div>
-            <div className="truncate">
-              <h2 className="text-[22px] font-bold text-slate-900 truncate mb-1">{data.name || "Unnamed Credential"}</h2>
-              <p className="text-[14px] text-slate-500">
-                {TYPE_LABELS[data.type as ItemType] || "Secure Credential"}
+            <div className="min-w-0 flex-1">
+              <h2 className="text-xl font-bold font-display text-text-primary truncate">{data.name || "Unnamed Credential"}</h2>
+              <p className="text-xs text-text-secondary mt-0.5">
+                {TYPE_LABELS[data.type as ItemType] || "Secure Item"}
               </p>
             </div>
           </div>
 
-          <div className="p-[32px] space-y-6">
+          {/* Credential Data Fields */}
+          <div className="p-6 space-y-5">
             {"username" in data && data.username && (
-              <div>
-                <label className="text-[12px] font-semibold text-slate-500 uppercase tracking-wider mb-2 block">Username</label>
-                <div className="flex bg-slate-50 border border-border-light rounded-xl px-4 py-3 text-[15px] text-slate-900 font-medium">
-                  {data.username}
-                </div>
-              </div>
-            )}
-            
-            {"password" in data && data.password && (
-              <div>
-                <label className="text-[12px] font-semibold text-slate-500 uppercase tracking-wider mb-2 block">Password</label>
-                <div className="flex items-center justify-between bg-slate-50 border border-border-light rounded-xl px-4 py-2 relative group min-h-[52px]">
-                  <div className="text-[15px] font-mono text-slate-900 break-all pr-24 py-1">
-                    {data.password}
-                  </div>
-                  <Button 
+              <div className="space-y-1.5">
+                <label className="text-xs font-mono font-medium text-text-secondary uppercase tracking-wider block">Username / Account</label>
+                <div className="flex items-center justify-between bg-surface-elevated border border-border rounded-xl px-4 py-3 relative group">
+                  <span className="text-sm font-mono text-text-primary break-all select-all">{data.username}</span>
+                  <Button
                     variant="ghost"
-                    onClick={() => handleCopy(data.password!)}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 h-9 px-3 bg-white border border-border-light shadow-sm text-slate-700"
+                    size="sm"
+                    onClick={() => handleCopy(data.username!, "username")}
+                    className="h-8 px-2.5 text-text-secondary hover:text-text-primary shrink-0 ml-2"
                   >
-                    {copied ? <Check size={16} className="text-success mr-1.5" /> : <Copy size={16} className="mr-1.5" />}
-                    {copied ? "Copied" : "Copy"}
+                    {copiedField === "username" ? (
+                      <span className="flex items-center text-accent-positive gap-1 text-xs">
+                        <Check size={14} /> Copied
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-1 text-xs">
+                        <Copy size={14} /> Copy
+                      </span>
+                    )}
                   </Button>
                 </div>
               </div>
             )}
-            
-            {"url" in data && data.url && (
-              <div>
-                <label className="text-[12px] font-semibold text-slate-500 uppercase tracking-wider mb-2 block">URL</label>
-                <a href={data.url} target="_blank" rel="noopener noreferrer" className="text-primary hover:text-primary-dark hover:underline text-[15px] truncate block font-medium">
-                  {data.url}
-                </a>
+
+            {"password" in data && data.password && (
+              <div className="space-y-1.5">
+                <label className="text-xs font-mono font-medium text-text-secondary uppercase tracking-wider block">Password</label>
+                <div className="flex items-center justify-between bg-surface-elevated border border-border rounded-xl px-4 py-3 relative group">
+                  <span className="text-sm font-mono text-accent-primary break-all select-all pr-2">{data.password}</span>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={() => handleCopy(data.password!, "password")}
+                    className="h-8 px-3 shrink-0 ml-2"
+                  >
+                    {copiedField === "password" ? (
+                      <span className="flex items-center gap-1 text-xs font-medium">
+                        <Check size={14} /> Copied
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-1 text-xs font-medium">
+                        <Copy size={14} /> Copy Password
+                      </span>
+                    )}
+                  </Button>
+                </div>
               </div>
             )}
-            
+
+            {"url" in data && data.url && (
+              <div className="space-y-1.5">
+                <label className="text-xs font-mono font-medium text-text-secondary uppercase tracking-wider block">Target Service URL</label>
+                <div className="flex items-center justify-between bg-surface-elevated border border-border rounded-xl px-4 py-3">
+                  <a
+                    href={data.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm font-mono text-accent-primary hover:underline truncate block"
+                  >
+                    {data.url}
+                  </a>
+                  <a
+                    href={data.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-text-secondary hover:text-accent-primary ml-2 p-1"
+                    title="Open in new tab"
+                  >
+                    <ExternalLink size={16} />
+                  </a>
+                </div>
+              </div>
+            )}
+
             {"content" in data && data.content && (
-              <div>
-                <label className="text-[12px] font-semibold text-slate-500 uppercase tracking-wider mb-2 block">Secure Note</label>
-                <div className="bg-slate-50 border border-border-light rounded-xl p-5 text-[14px] text-slate-800 whitespace-pre-wrap font-mono leading-relaxed max-h-[300px] overflow-y-auto">
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-mono font-medium text-text-secondary uppercase tracking-wider block">Secure Note</label>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleCopy(data.content!, "content")}
+                    className="h-6 px-2 text-text-secondary hover:text-text-primary text-xs"
+                  >
+                    {copiedField === "content" ? "Copied" : "Copy Note"}
+                  </Button>
+                </div>
+                <div className="bg-surface-elevated border border-border rounded-xl p-4 text-xs font-mono text-text-primary whitespace-pre-wrap leading-relaxed max-h-[260px] overflow-y-auto selection:bg-accent-primary/20">
                   {data.content}
                 </div>
               </div>
             )}
-            
+
             {"notes" in data && data.notes && (
-              <div>
-                <label className="text-[12px] font-semibold text-slate-500 uppercase tracking-wider mb-2 block">Additional Notes</label>
-                <div className="bg-slate-50 border border-border-light rounded-xl p-5 text-[15px] text-slate-700 whitespace-pre-wrap leading-relaxed max-h-[200px] overflow-y-auto">
+              <div className="space-y-1.5">
+                <label className="text-xs font-mono font-medium text-text-secondary uppercase tracking-wider block">Additional Metadata</label>
+                <div className="bg-surface-elevated border border-border rounded-xl p-4 text-xs text-text-secondary whitespace-pre-wrap leading-relaxed max-h-[160px] overflow-y-auto">
                   {data.notes}
                 </div>
               </div>
             )}
           </div>
+
+          {/* Security Safeguard Footer */}
+          <div className="px-6 py-4 bg-surface-elevated/40 border-t border-border flex items-center justify-between text-xs text-text-secondary">
+            <span className="flex items-center gap-1.5 font-mono text-[11px]">
+              <Lock size={12} className="text-accent-primary" /> Memory-only retention
+            </span>
+            <span className="font-mono text-[11px] text-text-muted">
+              Decrypted at {decryptedAt.toLocaleTimeString()}
+            </span>
+          </div>
         </div>
 
-        <div className="mt-8 text-center text-[13px] text-slate-500 flex flex-col items-center gap-2">
-          <Shield className="w-5 h-5 text-slate-300" />
-          <p className="leading-relaxed max-w-sm">
-            Decrypted locally at {decryptedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}.<br/>
-            This page is view-only and will not auto-refresh.
+        {/* Disclaimer / Promotion */}
+        <div className="mt-6 text-center space-y-2">
+          <p className="text-xs text-text-muted max-w-sm mx-auto leading-relaxed">
+            This credential was decrypted client-side using WebCrypto AES-256-GCM. Closing this window purges the decrypted key from memory.
           </p>
+          <div>
+            <Link href="/" className="text-xs font-medium text-accent-primary hover:underline">
+              Learn about Sentinel Vault Zero-Knowledge Architecture &rarr;
+            </Link>
+          </div>
         </div>
       </div>
     </main>

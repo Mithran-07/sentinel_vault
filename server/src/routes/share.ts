@@ -4,6 +4,7 @@ import { prisma } from "../lib/prisma";
 import { requireAuth, AuthedRequest } from "../middleware/auth";
 import { recordAuditEvent } from "../lib/audit";
 import rateLimit from "express-rate-limit";
+import { logger } from "../lib/logger";
 
 const router = Router();
 
@@ -61,7 +62,7 @@ router.post("/", requireAuth, async (req: AuthedRequest, res) => {
 
     return res.status(201).json({ id: share.id, expiresAt: share.expiresAt });
   } catch (error) {
-    console.error(error);
+    logger.error("Failed to create share:", error);
     return res.status(500).json({ error: "Failed to create share" });
   }
 });
@@ -105,7 +106,7 @@ router.get("/:id", publicShareLimiter, async (req, res) => {
       expiresAt: share.expiresAt
     });
   } catch (error) {
-    console.error(error);
+    logger.error("Failed to retrieve share:", error);
     return res.status(500).json({ error: "Failed to retrieve share" });
   }
 });
@@ -139,7 +140,7 @@ router.delete("/:id", requireAuth, async (req: AuthedRequest, res) => {
 
     return res.json({ success: true });
   } catch (error) {
-    console.error(error);
+    logger.error("Failed to revoke share:", error);
     return res.status(500).json({ error: "Failed to revoke share" });
   }
 });

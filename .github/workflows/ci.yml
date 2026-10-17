@@ -1,0 +1,69 @@
+name: Sentinel Vault CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  verify-frontend:
+    name: Verify Frontend Build (Next.js)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: client
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build production Next.js bundle
+        env:
+          NEXT_PUBLIC_API_URL: https://api.sentinelvault.internal/api
+        run: npm run build
+
+  verify-backend:
+    name: Verify Backend & Security Primitives (Express + Prisma)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Compile TypeScript
+        run: npm run build
+
+      - name: Execute Cryptographic & Security Unit Tests
+        env:
+          NODE_ENV: test
+          JWT_ACCESS_SECRET: ci_test_access_secret_32bytes_minimum!!
+          JWT_REFRESH_SECRET: ci_test_refresh_secret_32bytes_minimum!
+          MFA_ENCRYPTION_SECRET: ci_test_mfa_secret_32bytes_minimum!!
+          LOCAL_DEV_KMS_KEY: ci_test_kms_secret_32bytes_minimum!!
+        run: |
+          npx jest src/__tests__/unit/crypto.test.ts src/__tests__/unit/config.test.ts src/__tests__/unit/kms.test.ts src/__tests__/unit/audit-chain.test.ts src/__tests__/unit/error-handler.test.ts src/__tests__/unit/user-lifecycle-logic.test.ts src/__tests__/unit/test-prisma-guard.test.ts src/__tests__/unit/csrf-protection.test.ts

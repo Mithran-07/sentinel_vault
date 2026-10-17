@@ -14,6 +14,7 @@ import { requireAuth, AuthedRequest } from "../middleware/auth";
 import { requireOrgPermission } from "../middleware/orgAuth";
 import { recordAuditEvent } from "../lib/audit";
 import { signAccessToken, signRefreshToken } from "../lib/jwt";
+import { setRefreshCookie } from "../lib/cookies";
 import {
   assertKmsConfigured,
   decryptOidcClientSecret,
@@ -515,7 +516,7 @@ ssoAuthRouter.post("/saml/acs/:orgId", async (req, res) => {
     // Normally we'd set the refresh token in cookie and redirect to frontend 
     // where they can get the access token from the URL hash or we just set both in cookies.
     // For simplicity, we can set them in cookies and redirect.
-    res.cookie("refreshToken", refreshTokenStr, { httpOnly: true, secure: process.env.NODE_ENV === "production", path: "/api/auth" });
+    setRefreshCookie(res, refreshTokenStr);
     const frontendUrl = process.env.CLIENT_ORIGIN || "http://localhost:3000";
     
     return res.redirect(`${frontendUrl}/sso-callback?token=${accessToken}&setupPending=${cryptoSetupPending}`);
@@ -608,7 +609,7 @@ ssoAuthRouter.get("/oidc/callback", async (req, res) => {
     res.clearCookie("oidc_nonce");
     res.clearCookie("oidc_verifier");
 
-    res.cookie("refreshToken", refreshTokenStr, { httpOnly: true, secure: process.env.NODE_ENV === "production", path: "/api/auth" });
+    setRefreshCookie(res, refreshTokenStr);
     const frontendUrl = process.env.CLIENT_ORIGIN || "http://localhost:3000";
     
     return res.redirect(`${frontendUrl}/sso-callback?token=${accessToken}&setupPending=${cryptoSetupPending}`);

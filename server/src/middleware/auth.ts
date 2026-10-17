@@ -39,8 +39,8 @@ export async function requireAuth(req: AuthedRequest, res: Response, next: NextF
       }
 
       const dbUser = await prisma.user.findUnique({ where: { id: payload.sub } });
-      if (dbUser?.isSuspended) {
-        return res.status(401).json({ error: "User is suspended" });
+      if (!dbUser || dbUser.isSuspended || dbUser.deletedAt) {
+        return res.status(401).json({ error: "User is suspended or deactivated" });
       }
 
       const now = Date.now();

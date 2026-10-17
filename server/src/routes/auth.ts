@@ -9,6 +9,7 @@ import { recordAuditEvent } from "../lib/audit";
 import { parseDeviceType, generateDeviceFingerprint, evaluateSuspiciousDevice } from "../lib/device";
 import rateLimit from "express-rate-limit";
 import { requireAuth, AuthedRequest } from "../middleware/auth";
+import { logger } from "../lib/logger";
 
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
@@ -24,20 +25,7 @@ const router = Router();
 const MAX_FAILED_ATTEMPTS = 5;
 const LOCKOUT_DURATION_MS = 15 * 60 * 1000; // 15 minutes
 
-// Cookie helper
-function setRefreshCookie(res: Response, token: string) {
-  res.cookie("refreshToken", token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    path: "/api/auth",
-    maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
-  });
-}
-
-function clearRefreshCookie(res: Response) {
-  res.clearCookie("refreshToken", { path: "/api/auth" });
-}
+import { setRefreshCookie, clearRefreshCookie } from "../lib/cookies";
 
 function hashToken(token: string): string {
   return crypto.createHash("sha256").update(token).digest("hex");
@@ -141,13 +129,13 @@ router.post("/register", async (req, res) => {
   await recordAuditEvent(user.id, "SESSION_CREATED", { sessionId: session.id, ip: req.ip });
 
   setRefreshCookie(res, refreshToken);
-  res.status(201).json({ accessToken, refreshToken });
+  res.status(201).json({ accessToken });
 });
 
 // ── KDF prelogin (account-enumeration resistant) ───────────────────────────
 router.get("/kdf", authLimiter, async (req, res) => {
   const email = String(req.query.email || "");
-  const user = email ? await prisma.user.findUnique({ where: { email } }) : null;
+  const user = email ? await prisma.user.findFirst({ where: { email, deletedAt: null } }) : null;
 
   if (!user) {
     // Deterministic fake salt per email to prevent timing/response enumeration
@@ -202,8 +190,8 @@ router.post("/login", authLimiter, async (req, res) => {
     }
     return res.status(401).json({ error: "Invalid email or master password" });
   }
-  if (user.isSuspended) {
-    return res.status(401).json({ error: "User is suspended. Please contact support." });
+  if (user.isSuspended || user.deletedAt) {
+    return res.status(401).json({ error: "User is suspended or deactivated. Please contact support." });
   }
 
   // Reset lockout tracking on successful auth
@@ -296,7 +284,6 @@ router.post("/login", authLimiter, async (req, res) => {
   setRefreshCookie(res, refreshToken);
   res.json({
     accessToken,
-    refreshToken,
     kdf: {
       salt: user.kdfSalt,
       memoryKb: user.kdfMemoryKb,
@@ -318,6 +305,16 @@ router.post("/refresh", async (req, res) => {
 
   if (!rawToken) {
     return res.status(400).json({ error: "Missing refresh token" });
+  }
+
+  // Anti-CSRF defense: If refreshed via ambient cookie, enforce custom request header
+  if (tokenFromCookie) {
+    const customHeader = req.headers["x-requested-with"];
+    const validHeaders = ["XMLHttpRequest", "SentinelVault"];
+    const headerValue = Array.isArray(customHeader) ? customHeader[0] : customHeader;
+    if (!headerValue || !validHeaders.includes(headerValue)) {
+      return res.status(403).json({ error: "Missing required CSRF protection header" });
+    }
   }
 
   try {
@@ -395,9 +392,9 @@ router.post("/refresh", async (req, res) => {
     await recordAuditEvent(user.id, "REFRESH_TOKEN_ROTATED", { sessionId: payload.sessionId });
 
     setRefreshCookie(res, newRefreshToken);
-    res.json({ accessToken: newAccessToken, refreshToken: newRefreshToken });
+    res.json({ accessToken: newAccessToken });
   } catch (err) {
-    console.error("Refresh error:", err);
+    logger.warn("Refresh error:", err);
     clearRefreshCookie(res);
     return res.status(401).json({ error: "Invalid refresh token" });
   }

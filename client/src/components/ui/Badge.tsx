@@ -1,20 +1,47 @@
 import React from "react";
 
-export interface BadgeProps extends React.HTMLAttributes<HTMLDivElement> {
-  variant?: "default" | "secondary" | "destructive" | "outline";
+export interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
+  variant?:
+    | "default"
+    | "secondary"
+    | "neutral"
+    | "destructive"
+    | "outline"
+    | "accent"
+    | "success"
+    | "warning"
+    | "info";
+  size?: "sm" | "md" | "lg";
 }
 
-export function Badge({ className = "", variant = "default", ...props }: BadgeProps) {
-  const variants = {
-    default: "border-transparent bg-foreground text-background shadow",
-    secondary: "border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80",
-    destructive: "border-transparent bg-destructive text-destructive-foreground shadow",
-    outline: "text-foreground",
-  };
-  
-  const baseClasses = "inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2";
-  
+const variants: Record<NonNullable<BadgeProps["variant"]>, string> = {
+  default: "bg-surface-3 text-fg border-line",
+  secondary: "bg-surface-2 text-fg-muted border-line",
+  neutral: "bg-surface-2 text-fg-muted border-line",
+  destructive: "bg-danger/12 text-danger border-danger/35",
+  outline: "bg-transparent text-fg-muted border-line",
+  accent: "bg-accent/10 text-accent border-accent/30",
+  success: "bg-success/12 text-success border-success/35",
+  warning: "bg-warning/12 text-warning border-warning/35",
+  info: "bg-info/12 text-info border-info/35",
+};
+
+const sizes: Record<NonNullable<BadgeProps["size"]>, string> = {
+  sm: "px-2 py-0.5 text-[10px]",
+  md: "px-2.5 py-0.5 text-xs",
+  lg: "px-3 py-1 text-xs",
+};
+
+export function Badge({
+  className = "",
+  variant = "default",
+  size = "md",
+  ...props
+}: BadgeProps) {
   return (
-    <div className={`${baseClasses} ${variants[variant]} ${className}`} {...props} />
+    <span
+      className={`inline-flex items-center gap-1 font-mono font-semibold rounded-md border ${variants[variant]} ${sizes[size]} ${className}`}
+      {...props}
+    />
   );
 }

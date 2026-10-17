@@ -1,0 +1,42 @@
+# ==============================================================================
+# Sentinel Vault — Render Blueprint (Infrastructure-as-Code)
+# https://render.com/docs/blueprint-spec
+# ==============================================================================
+
+services:
+  - type: web
+    name: sentinel-vault-api
+    runtime: node
+    plan: starter
+    region: oregon
+    rootDir: server
+    buildCommand: npm ci && npx prisma generate && npm run build
+    preDeployCommand: npx prisma migrate deploy
+    startCommand: node dist/index.js
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: CLIENT_ORIGIN
+        sync: false # Set to your Vercel deployment URL, e.g., https://sentinel-vault.vercel.app
+      - key: API_URL
+        sync: false # Set to your Render service URL, e.g., https://sentinel-vault-api.onrender.com
+      - key: DATABASE_URL
+        sync: false # Set to your Managed PostgreSQL connection string with ?sslmode=require
+      - key: REDIS_URL
+        sync: false # Set to your Managed Redis connection string (e.g. Render Redis or Upstash)
+      - key: JWT_ACCESS_SECRET
+        generateValue: true # Render automatically provisions a 256-bit cryptographically secure string
+      - key: JWT_REFRESH_SECRET
+        generateValue: true # Render automatically provisions a distinct 256-bit secure string
+      - key: MFA_ENCRYPTION_SECRET
+        generateValue: true # Render automatically provisions a distinct 256-bit secure string
+      - key: COOKIE_SAME_SITE
+        value: none # Required for cross-site cookie transmission between Vercel and Render domains
+      - key: RP_ID
+        sync: false # Set to your frontend hostname, e.g., sentinel-vault.vercel.app
+      - key: EXPECTED_ORIGIN
+        sync: false # Set to your full frontend origin, e.g., https://sentinel-vault.vercel.app

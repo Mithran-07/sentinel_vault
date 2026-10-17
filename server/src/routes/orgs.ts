@@ -4,7 +4,9 @@ import { prisma } from "../lib/prisma";
 import { requireAuth, AuthedRequest } from "../middleware/auth";
 import { requireOrgOwnership, requireOrgMembership, OrgAuthedRequest } from "../middleware/orgAuth";
 import { recordAuditEvent } from "../lib/audit";
+import { acquireUserAndOrgLocks } from "../lib/advisory-lock";
 import * as crypto from "crypto";
+
 import * as argon2 from "argon2";
 
 const router = Router();
@@ -245,26 +247,68 @@ router.patch("/:id/members/:memberId", requireAuth, requireOrgOwnership, async (
       return res.status(400).json({ error: "Invalid status" });
     }
 
-    const member = await prisma.organizationMember.findUnique({
-      where: { id: req.params.memberId, orgId: req.orgId }
+    const orgId = req.orgId!;
+    const memberId = req.params.memberId;
+
+    const updated = await prisma.$transaction(async (tx) => {
+      // 1. Acquire transaction advisory locks in global hierarchical order:
+      // USER lock (actor) -> ORG lock (organization)
+      // This strictly matches deactivateUserAccount lock order and eliminates lock-order inversion deadlocks.
+      await acquireUserAndOrgLocks(tx, req.userId!, orgId);
+
+      // 2. Fetch target member under lock
+      const member = await tx.organizationMember.findUnique({
+        where: { id: memberId, orgId },
+      });
+
+      if (!member) {
+        const error: any = new Error("Member not found");
+        error.statusCode = 404;
+        throw error;
+      }
+
+      // 3. Self-modification restriction
+      if (member.userId === req.userId) {
+        const error: any = new Error("Cannot modify own status");
+        error.statusCode = 400;
+        throw error;
+      }
+
+      // 4. Sole active owner protection:
+      // If target member is currently an active OWNER and status is changing away from ACTIVE:
+      if (member.role === "OWNER" && member.status === "ACTIVE" && status !== "ACTIVE") {
+        const activeOwnerCount = await tx.organizationMember.count({
+          where: { orgId, role: "OWNER", status: "ACTIVE" },
+        });
+
+        if (activeOwnerCount <= 1) {
+          const error: any = new Error(
+            "Cannot suspend the sole active owner of an organization. Transfer ownership or assign another owner first."
+          );
+          error.code = "CANNOT_SUSPEND_SOLE_ORG_OWNER";
+          error.statusCode = 409;
+          throw error;
+        }
+      }
+
+      // 5. Update member status inside transaction
+      const updatedMember = await tx.organizationMember.update({
+        where: { id: member.id },
+        data: { status },
+      });
+
+      // 6. Record audit event within transaction
+      const eventType = status === "ACTIVE" ? "ORG_MEMBER_REACTIVATED" : "ORG_MEMBER_SUSPENDED";
+      await recordAuditEvent(req.userId!, eventType, { orgId, targetUserId: member.userId }, tx);
+
+      return updatedMember;
     });
-
-    if (!member) return res.status(404).json({ error: "Member not found" });
-
-    if (member.userId === req.userId) {
-      return res.status(400).json({ error: "Cannot modify own status" });
-    }
-
-    const updated = await prisma.organizationMember.update({
-      where: { id: member.id },
-      data: { status }
-    });
-    
-    const eventType = status === "ACTIVE" ? "ORG_MEMBER_REACTIVATED" : "ORG_MEMBER_SUSPENDED";
-    await recordAuditEvent(req.userId!, eventType, { orgId: req.orgId, targetUserId: member.userId });
 
     res.json({ data: updated });
   } catch (err: any) {
+    if (err.statusCode) {
+      return res.status(err.statusCode).json({ error: err.message, code: err.code });
+    }
     res.status(500).json({ error: "Internal server error" });
   }
 });
@@ -272,27 +316,68 @@ router.patch("/:id/members/:memberId", requireAuth, requireOrgOwnership, async (
 // Remove member
 router.delete("/:id/members/:memberId", requireAuth, requireOrgOwnership, async (req: OrgAuthedRequest, res) => {
   try {
-    const member = await prisma.organizationMember.findUnique({
-      where: { id: req.params.memberId, orgId: req.orgId }
+    const orgId = req.orgId!;
+    const memberId = req.params.memberId;
+
+    await prisma.$transaction(async (tx) => {
+      // 1. Acquire transaction advisory locks in global hierarchical order:
+      // USER lock (actor) -> ORG lock (organization)
+      // This strictly matches deactivateUserAccount lock order and eliminates lock-order inversion deadlocks.
+      await acquireUserAndOrgLocks(tx, req.userId!, orgId);
+
+      // 2. Fetch target member under lock
+      const member = await tx.organizationMember.findUnique({
+        where: { id: memberId, orgId },
+      });
+
+      if (!member) {
+        const error: any = new Error("Member not found");
+        error.statusCode = 404;
+        throw error;
+      }
+
+      // 3. Self-removal restriction
+      if (member.userId === req.userId) {
+        const error: any = new Error("Cannot remove oneself");
+        error.statusCode = 400;
+        throw error;
+      }
+
+      // 4. Sole active owner protection:
+      // If target member is currently an active OWNER:
+      if (member.role === "OWNER" && member.status === "ACTIVE") {
+        const activeOwnerCount = await tx.organizationMember.count({
+          where: { orgId, role: "OWNER", status: "ACTIVE" },
+        });
+
+        if (activeOwnerCount <= 1) {
+          const error: any = new Error(
+            "Cannot remove the sole active owner of an organization. Transfer ownership or assign another owner first."
+          );
+          error.code = "CANNOT_REMOVE_SOLE_ORG_OWNER";
+          error.statusCode = 409;
+          throw error;
+        }
+      }
+
+      // 5. Update member status to REMOVED inside transaction
+      await tx.organizationMember.update({
+        where: { id: member.id },
+        data: { status: "REMOVED" },
+      });
+
+      // 6. Record audit event within transaction
+      await recordAuditEvent(req.userId!, "ORG_MEMBER_REMOVED", { orgId, targetUserId: member.userId }, tx);
     });
 
-    if (!member) return res.status(404).json({ error: "Member not found" });
-    
-    if (member.userId === req.userId) {
-      return res.status(400).json({ error: "Cannot remove oneself" });
-    }
-
-    await prisma.organizationMember.update({
-      where: { id: member.id },
-      data: { status: "REMOVED" }
-    });
-
-    await recordAuditEvent(req.userId!, "ORG_MEMBER_REMOVED", { orgId: req.orgId, targetUserId: member.userId });
-    
     res.status(204).send();
   } catch (err: any) {
+    if (err.statusCode) {
+      return res.status(err.statusCode).json({ error: err.message, code: err.code });
+    }
     res.status(500).json({ error: "Internal server error" });
   }
 });
+
 
 export default router;

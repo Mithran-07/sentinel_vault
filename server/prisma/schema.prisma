@@ -36,6 +36,7 @@ model User {
   cryptoSetupPending          Boolean   @default(false)
   ssoProviderId               String?
   ssoSubjectId                String?
+  deletedAt                   DateTime?
 
   folders             Folder[]
   wallets             Wallet[]
@@ -46,10 +47,11 @@ model User {
   passkeys            Passkey[]
   mfaMethods          MfaMethod[]
   recoveryCodes       RecoveryCode[]
-  auditEvents         AuditEvent[]
   tags                Tag[]
   organizationMembers OrganizationMember[]
   sharedCredentials   SharedCredential[]
+
+  @@index([deletedAt])
 }
 
 model Session {
@@ -242,12 +244,15 @@ model AuditEvent {
   id        String   @id @default(uuid())
   sequence  Int      @default(autoincrement())
   userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   eventType String
   metadata  Json?
   prevHash  String
   hash      String
   createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([sequence])
+  @@index([createdAt])
 }
 
 // ── Phase 4.1 Organizations & Membership ─────────────────────────────────────

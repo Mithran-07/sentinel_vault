@@ -22,7 +22,7 @@ router.use(requireGlobalAdmin);
 router.use(adminRateLimiter);
 
 // IP Masking Utility for Audit Logging
-function truncateIpForAudit(ip: string | undefined): string {
+export function truncateIpForAudit(ip: string | undefined): string {
   if (!ip) return "unknown";
   const addr = ip.startsWith("::ffff:") ? ip.slice(7) : ip;
   if (addr.includes(".")) {
@@ -37,12 +37,12 @@ function truncateIpForAudit(ip: string | undefined): string {
 }
 
 // Strict metadata whitelist for global audit sanitization
-const SAFE_METADATA_KEYS = new Set([
+export const SAFE_METADATA_KEYS = new Set([
   "orgId", "targetUserId", "reason", "ip", "browser", "os", "attempts",
   "status", "name", "roleId", "email", "collectionId", "keyVersion", "policyType"
 ]);
 
-function sanitizeAuditEvent(event: any) {
+export function sanitizeAuditEvent(event: any) {
   const sanitizedMetadata: Record<string, any> = {};
   if (event.metadata && typeof event.metadata === "object") {
     for (const [key, val] of Object.entries(event.metadata)) {
@@ -96,6 +96,7 @@ router.get("/users", async (req: AuthedRequest, res: Response) => {
         email: true,
         isSuperAdmin: true,
         isSuspended: true,
+        deletedAt: true,
         failedLoginAttempts: true,
         lastLoginAt: true,
         lastLoginIp: true,
@@ -243,7 +244,7 @@ router.get("/metrics", async (req: AuthedRequest, res: Response) => {
     activeSessions
   ] = await Promise.all([
     prisma.user.count(),
-    prisma.user.count({ where: { isSuspended: false } }),
+    prisma.user.count({ where: { isSuspended: false, deletedAt: null } }),
     prisma.user.count({ where: { isSuspended: true } }),
     prisma.organization.count(),
     prisma.vaultItem.count(),

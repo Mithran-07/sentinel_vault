@@ -1,33 +1,52 @@
-import React from "react";
+import React, { useId } from "react";
 
 export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   error?: string;
   icon?: React.ReactNode;
+  label?: string;
+  hint?: string;
+  trailing?: React.ReactNode;
 }
 
 export const Input = React.forwardRef<HTMLInputElement, InputProps>(
-  ({ className = "", error, icon, ...props }, ref) => {
+  ({ className = "", error, icon, label, hint, trailing, id, ...props }, ref) => {
+    const autoId = useId();
+    const inputId = id ?? autoId;
+    const descId = error ? `${inputId}-err` : hint ? `${inputId}-hint` : undefined;
     return (
-      <div className="w-full relative">
-        {icon && (
-          <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400">
-            {icon}
-          </div>
+      <div className="w-full">
+        {label && (
+          <label htmlFor={inputId} className="label">
+            {label}
+          </label>
         )}
-        <input
-          ref={ref}
-          className={`
-            w-full bg-white border border-slate-200 rounded-[10px] px-3.5 py-2.5 
-            text-sm text-slate-900 placeholder:text-slate-400 
-            focus:outline-none focus:ring-2 focus:ring-[#6366f1]/20 focus:border-[#6366f1] 
-            transition-all duration-150
-            ${icon ? "pl-10" : ""}
-            ${error ? "border-danger focus:ring-danger/20 focus:border-danger" : ""}
-            ${className}
-          `}
-          {...props}
-        />
-        {error && <p className="mt-1 text-xs text-danger">{error}</p>}
+        <div className="relative">
+          {icon && (
+            <div className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-fg-subtle [&>svg]:w-4 [&>svg]:h-4">
+              {icon}
+            </div>
+          )}
+          <input
+            ref={ref}
+            id={inputId}
+            aria-invalid={error ? true : undefined}
+            aria-describedby={descId}
+            className={`field ${icon ? "pl-9" : ""} ${trailing ? "pr-10" : ""} ${
+              error ? "border-danger focus:border-danger focus:ring-danger/25" : ""
+            } ${className}`}
+            {...props}
+          />
+          {trailing && <div className="absolute right-1.5 top-1/2 -translate-y-1/2">{trailing}</div>}
+        </div>
+        {error ? (
+          <p id={descId} role="alert" className="mt-1.5 text-xs text-danger">
+            {error}
+          </p>
+        ) : hint ? (
+          <p id={descId} className="mt-1.5 text-xs text-fg-subtle">
+            {hint}
+          </p>
+        ) : null}
       </div>
     );
   }

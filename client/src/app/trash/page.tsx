@@ -8,7 +8,21 @@ import { api } from "@/lib/api";
 import { ItemPayload, TYPE_LABELS, ItemType } from "@/components/ItemModal";
 import { AppShell } from "@/components/AppShell";
 import { Button } from "@/components/ui/Button";
-import { Trash2, Key, CreditCard, FileText, Lock, Info, RotateCcw } from "lucide-react";
+import { Skeleton } from "@/components/ui/Skeleton";
+import { useToast } from "@/components/ui/Toast";
+import { 
+  Trash2, 
+  Key, 
+  CreditCard, 
+  FileText, 
+  Lock, 
+  Info, 
+  RotateCcw, 
+  AlertTriangle,
+  User,
+  Code,
+  Terminal
+} from "lucide-react";
 
 interface VaultItemRecord {
   id: string;
@@ -25,16 +39,30 @@ interface DecryptedItem {
   data: ItemPayload;
 }
 
+const TYPE_ICONS: Record<string, any> = {
+  LOGIN: Key,
+  SECURE_NOTE: FileText,
+  CARD: CreditCard,
+  IDENTITY: User,
+  SSH_KEY: Code,
+  API_CREDENTIAL: Terminal,
+};
+
 export default function TrashPage() {
   const router = useRouter();
+  const { toast } = { toast: useToast() };
   const { vaultKey, activeWalletId } = useVault();
   const [items, setItems] = useState<DecryptedItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [restoringId, setRestoringId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!vaultKey) { router.replace("/login"); return; }
+    if (!vaultKey) {
+      router.replace("/login");
+      return;
+    }
     if (activeWalletId) {
       void loadTrash();
     } else {
@@ -48,6 +76,7 @@ export default function TrashPage() {
     setLoading(true);
     try {
       const res = await api.get(`/vault/items?deleted=true&walletId=${activeWalletId}`);
+      if (!res.ok) throw new Error("Failed to load trash");
       const records: VaultItemRecord[] = await res.json();
       const decrypted = await Promise.all(
         records.map(async (r) => ({
@@ -57,29 +86,38 @@ export default function TrashPage() {
         }))
       );
       setItems(decrypted);
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
+      toast.error(e.message || "Failed to decrypt trash contents");
     } finally {
       setLoading(false);
     }
   }
 
   async function handleRestore(id: string, name: string) {
-    if (!window.confirm(`Restore "${name}" to your vault?`)) return;
-    await api.post(`/vault/items/${id}/restore`, {});
-    await loadTrash();
-  }
-
-  function handleDeleteClick(id: string) {
-    setDeleteConfirmId(id);
+    setRestoringId(id);
+    try {
+      const res = await api.post(`/vault/items/${id}/restore`, {});
+      if (!res.ok) throw new Error("Failed to restore item");
+      toast.success(`Restored "${name}" to active vault`);
+      await loadTrash();
+    } catch (e: any) {
+      toast.error(e.message || "Failed to restore");
+    } finally {
+      setRestoringId(null);
+    }
   }
 
   async function confirmDelete() {
     if (!deleteConfirmId) return;
     setIsDeleting(true);
     try {
-      await api.del(`/vault/items/${deleteConfirmId}/permanent`);
+      const res = await api.del(`/vault/items/${deleteConfirmId}/permanent`);
+      if (!res.ok) throw new Error("Permanent deletion failed");
+      toast.success("Credential permanently erased");
       await loadTrash();
+    } catch (e: any) {
+      toast.error(e.message || "Failed to permanently delete item");
     } finally {
       setIsDeleting(false);
       setDeleteConfirmId(null);
@@ -87,117 +125,137 @@ export default function TrashPage() {
   }
 
   return (
-    <AppShell pageTitle="Trash">
+    <AppShell pageTitle="Trash & Recovery">
       <div className="max-w-5xl mx-auto">
-        <div className="mb-8">
-          <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-start gap-3 mt-4">
-            <Info className="text-amber-500 mt-0.5 shrink-0" size={20} />
-            <div>
-              <p className="text-[14px] text-amber-900 font-medium">Items in trash are deleted forever after 30 days.</p>
-              <p className="text-[14px] text-amber-700 mt-1">You can restore them before they are permanently purged.</p>
-            </div>
+        {/* Retention Policy Banner */}
+        <div className="p-4 rounded-xl border border-line bg-surface-2/40 mb-6 flex items-start gap-3">
+          <Info className="text-accent mt-0.5 shrink-0" size={18} />
+          <div className="text-xs leading-relaxed">
+            <span className="font-semibold text-fg">Soft-Delete Retention Policy: </span>
+            <span className="text-fg-muted">
+              Items remain in the trash encrypted with your vault key until permanently purged or restored. Server operators cannot read or reconstruct item contents even in deleted states.
+            </span>
           </div>
         </div>
 
+        {/* Content Table */}
         {loading ? (
-          <div className="flex items-center justify-center h-64 text-slate-400">
-            <svg className="animate-spin h-8 w-8 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+          <div className="panel p-6 space-y-3">
+            {[1, 2, 3].map((n) => (
+              <Skeleton key={n} className="h-16 w-full rounded-xl" />
+            ))}
           </div>
         ) : items.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-64 text-center max-w-md mx-auto">
-            <div className="w-16 h-16 rounded-2xl bg-surface border border-border-light shadow-sm flex items-center justify-center mb-6">
-              <Trash2 size={32} className="text-slate-400" />
+          <div className="panel p-12 text-center max-w-md mx-auto flex flex-col items-center justify-center">
+            <div className="w-14 h-14 rounded-2xl bg-surface-2 border border-line flex items-center justify-center mb-4 text-fg-subtle">
+              <Trash2 size={26} />
             </div>
-            <h3 className="text-[18px] font-bold text-slate-900 mb-2">Trash is empty</h3>
-            <p className="text-[14px] text-slate-500">Deleted items will appear here. They can be restored or permanently deleted.</p>
+            <h3 className="font-display text-base font-bold text-fg mb-1">Trash is empty</h3>
+            <p className="text-xs text-fg-muted leading-relaxed">
+              When you delete credentials from your vault, they will appear here before being permanently purged.
+            </p>
           </div>
         ) : (
-          <div className="bg-surface border border-border-light rounded-xl overflow-hidden shadow-sm">
-            <div className="grid grid-cols-12 gap-4 px-6 py-4 bg-slate-50 border-b border-border-light font-semibold tracking-wider text-[12px] text-slate-500 uppercase">
-              <div className="col-span-5">Name</div>
-              <div className="col-span-3">Deleted Date</div>
-              <div className="col-span-4 text-right">Actions</div>
+          <div className="panel overflow-hidden">
+            <div className="grid grid-cols-12 gap-4 px-6 py-3.5 bg-surface-2/50 border-b border-line text-[11px] font-mono uppercase tracking-wider text-fg-subtle">
+              <div className="col-span-6 sm:col-span-5">Deleted Credential</div>
+              <div className="col-span-3 hidden sm:block">Date Trashed</div>
+              <div className="col-span-6 sm:col-span-4 text-right">Actions</div>
             </div>
 
-            <div className="divide-y divide-border-light">
-              {items.map((item) => (
-                <div key={item.id} className="grid grid-cols-1 sm:grid-cols-12 gap-4 px-6 py-4 items-center opacity-75 hover:opacity-100 hover:bg-slate-50 transition-all group">
-                  <div className="sm:col-span-5 flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center shrink-0">
-                      {item.data.type === "LOGIN" ? <Key className="text-slate-400" size={20} /> : 
-                       item.data.type === "CARD" ? <CreditCard className="text-slate-400" size={20} /> : 
-                       item.data.type === "SECURE_NOTE" ? <FileText className="text-slate-400" size={20} /> : 
-                       <Lock className="text-slate-400" size={20} />}
-                    </div>
-                    <div className="truncate">
-                      <div className="text-[16px] font-medium text-slate-700 line-through truncate">
-                        {item.data.name}
+            <div className="divide-y divide-line text-xs">
+              {items.map((item) => {
+                const Icon = TYPE_ICONS[item.data.type] || Lock;
+                const deletedDate = new Date(item.deletedAt).toLocaleDateString(undefined, {
+                  month: "short",
+                  day: "numeric",
+                  year: "numeric",
+                });
+
+                return (
+                  <div
+                    key={item.id}
+                    className="grid grid-cols-12 gap-4 px-6 py-4 items-center hover:bg-surface-2/40 transition-colors"
+                  >
+                    <div className="col-span-6 sm:col-span-5 flex items-center gap-3 min-w-0">
+                      <div className="w-8 h-8 rounded-lg bg-surface-2 border border-line flex items-center justify-center shrink-0 text-fg-subtle">
+                        <Icon size={16} />
                       </div>
-                      <div className="text-[14px] text-slate-500 truncate">
-                        {TYPE_LABELS[item.data.type as ItemType]}
+                      <div className="min-w-0 truncate">
+                        <div className="font-semibold text-fg-muted line-through truncate">
+                          {item.data.name}
+                        </div>
+                        <div className="text-[10px] font-mono text-fg-subtle uppercase">
+                          {TYPE_LABELS[item.data.type as ItemType]}
+                        </div>
                       </div>
                     </div>
+
+                    <div className="col-span-3 hidden sm:block text-fg-subtle font-mono text-[11px]">
+                      {deletedDate}
+                    </div>
+
+                    <div className="col-span-6 sm:col-span-4 flex justify-end items-center gap-2">
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        disabled={restoringId === item.id}
+                        onClick={() => handleRestore(item.id, item.data.name)}
+                      >
+                        <RotateCcw size={13} className="mr-1" />
+                        <span>Restore</span>
+                      </Button>
+                      <Button
+                        variant="dangerGhost"
+                        size="sm"
+                        onClick={() => setDeleteConfirmId(item.id)}
+                      >
+                        <Trash2 size={13} className="mr-1" />
+                        <span>Purge</span>
+                      </Button>
+                    </div>
                   </div>
-                  
-                  <div className="sm:col-span-3">
-                    <div className="text-[14px] text-slate-600">{new Date(item.deletedAt).toLocaleDateString()}</div>
-                  </div>
-                  
-                  <div className="sm:col-span-4 flex justify-end gap-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                    <Button
-                      variant="ghost"
-                      onClick={() => handleRestore(item.id, item.data.name)}
-                      className="h-9 px-3"
-                    >
-                      <RotateCcw size={16} className="mr-1.5" />
-                      Restore
-                    </Button>
-                    <Button
-                      variant="dangerGhost"
-                      onClick={() => handleDeleteClick(item.id)}
-                      className="h-9 px-3"
-                    >
-                      <Trash2 size={16} className="mr-1.5" />
-                      Delete
-                    </Button>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}
       </div>
 
-      {/* Delete Modal */}
+      {/* Permanent Delete Modal */}
       {deleteConfirmId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in">
-          <div className="w-full max-w-sm bg-white border border-border-light rounded-[20px] shadow-xl overflow-hidden">
-            <div className="p-6 text-center">
-              <div className="w-16 h-16 rounded-full bg-danger-bg text-danger flex items-center justify-center mx-auto mb-4 border border-danger-border">
-                <Trash2 size={32} />
-              </div>
-              <h2 className="text-[20px] font-bold text-slate-900 mb-2">Permanently delete?</h2>
-              <p className="text-[14px] text-slate-500 mb-6">
-                This action cannot be undone. The credential will be permanently removed from your vault.
-              </p>
-              <div className="flex flex-col gap-3">
-                <Button
-                  onClick={confirmDelete}
-                  disabled={isDeleting}
-                  variant="danger"
-                  className="w-full h-11"
-                >
-                  {isDeleting ? "Deleting..." : "Delete Forever"}
-                </Button>
-                <Button
-                  onClick={() => setDeleteConfirmId(null)}
-                  disabled={isDeleting}
-                  variant="ghost"
-                  className="w-full h-11"
-                >
-                  Cancel
-                </Button>
-              </div>
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-canvas/80 backdrop-blur-sm animate-fade-in"
+        >
+          <div className="relative bg-surface border border-line rounded-2xl shadow-pop w-full max-w-sm p-6 text-center animate-pop-in">
+            <div className="w-12 h-12 rounded-xl bg-danger/15 text-danger border border-danger/35 flex items-center justify-center mx-auto mb-3">
+              <AlertTriangle size={24} />
+            </div>
+            <h3 className="font-display text-base font-bold text-fg mb-1">
+              Permanently Purge?
+            </h3>
+            <p className="text-xs text-fg-muted mb-5 leading-relaxed">
+              This action cannot be undone. The ciphertext will be permanently expunged from the database and cannot be recovered.
+            </p>
+            <div className="flex gap-2.5">
+              <Button
+                variant="ghost"
+                className="flex-1"
+                onClick={() => setDeleteConfirmId(null)}
+                disabled={isDeleting}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="danger"
+                className="flex-1"
+                onClick={confirmDelete}
+                isLoading={isDeleting}
+              >
+                Delete Forever
+              </Button>
             </div>
           </div>
         </div>

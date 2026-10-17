@@ -13,6 +13,7 @@ import {
   hashRecoveryCode,
   verifyRecoveryCodeHash,
 } from "../lib/recovery";
+import { logger } from "../lib/logger";
 
 const router = Router();
 
@@ -23,47 +24,21 @@ const recoveryIpRateLimiter = rateLimit({
   message: { error: "Too many recovery attempts from this IP. Try again in 15 minutes." },
 });
 
-// Account Throttling Map: Track failed attempts per userId/email
-interface AccountThrottle {
-  attempts: number;
-  resetAt: number;
-}
-const accountThrottleMap = new Map<string, AccountThrottle>();
+import { getAccountThrottler } from "../lib/throttler-store";
 
-function checkAccountThrottle(accountKey: string): boolean {
-  const now = Date.now();
-  const entry = accountThrottleMap.get(accountKey);
-  if (!entry) return false;
-  if (now > entry.resetAt) {
-    accountThrottleMap.delete(accountKey);
-    return false;
-  }
-  return entry.attempts >= 5;
+async function checkAccountThrottle(accountKey: string): Promise<boolean> {
+  return getAccountThrottler().check(accountKey);
 }
 
-function incrementAccountThrottle(accountKey: string) {
-  const now = Date.now();
-  const entry = accountThrottleMap.get(accountKey);
-  if (!entry || now > entry.resetAt) {
-    accountThrottleMap.set(accountKey, { attempts: 1, resetAt: now + 15 * 60 * 1000 });
-  } else {
-    entry.attempts += 1;
-  }
+async function incrementAccountThrottle(accountKey: string): Promise<void> {
+  await getAccountThrottler().increment(accountKey, 15 * 60);
 }
 
-function clearAccountThrottle(accountKey: string) {
-  accountThrottleMap.delete(accountKey);
+async function clearAccountThrottle(accountKey: string): Promise<void> {
+  await getAccountThrottler().clear(accountKey);
 }
 
-function setRefreshCookie(res: Response, token: string) {
-  res.cookie("refreshToken", token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "strict",
-    path: "/api/auth",
-    maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
-  });
-}
+import { setRefreshCookie } from "../lib/cookies";
 
 // ── POST /api/auth/recovery/generate ───────────────────────────────────────
 router.post("/generate", requireAuth, async (req: AuthedRequest, res: Response) => {
@@ -142,14 +117,14 @@ router.post("/verify", recoveryIpRateLimiter, async (req, res) => {
     const userId = tokenPayload.sub;
 
     // 2. Account throttling check
-    if (checkAccountThrottle(userId)) {
+    if (await checkAccountThrottle(userId)) {
       return res.status(429).json({ error: "Too many recovery attempts for this account. Try again in 15 minutes." });
     }
 
     // 3. User & active recovery codes lookup
     const user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user) {
-      incrementAccountThrottle(userId);
+      await incrementAccountThrottle(userId);
       return res.status(401).json({ error: "Invalid recovery code or challenge token" });
     }
 
@@ -158,7 +133,7 @@ router.post("/verify", recoveryIpRateLimiter, async (req, res) => {
     });
 
     if (activeCodes.length === 0) {
-      incrementAccountThrottle(userId);
+      await incrementAccountThrottle(userId);
       await recordAuditEvent(userId, "RECOVERY_CODE_REJECTED", { reason: "no_active_codes" });
       return res.status(401).json({ error: "Invalid recovery code or challenge token" });
     }
@@ -174,7 +149,7 @@ router.post("/verify", recoveryIpRateLimiter, async (req, res) => {
     }
 
     if (!matchedCodeId) {
-      incrementAccountThrottle(userId);
+      await incrementAccountThrottle(userId);
       await recordAuditEvent(userId, "RECOVERY_CODE_REJECTED", { reason: "invalid_code" });
       return res.status(401).json({ error: "Invalid recovery code or challenge token" });
     }
@@ -272,7 +247,7 @@ router.post("/verify", recoveryIpRateLimiter, async (req, res) => {
     });
 
     setRefreshCookie(res, refreshTokenRaw);
-    clearAccountThrottle(userId);
+    await clearAccountThrottle(userId);
 
     const remainingCount = activeCodes.length - 1;
     await recordAuditEvent(userId, "RECOVERY_CODE_USED", { remainingCodes: remainingCount });
@@ -295,7 +270,7 @@ router.post("/verify", recoveryIpRateLimiter, async (req, res) => {
       },
     });
   } catch (err) {
-    console.error("RECOVERY VERIFY ERROR:", err);
+    logger.error("Recovery verification error:", err);
     throw err;
   }
 });

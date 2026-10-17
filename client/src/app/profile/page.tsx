@@ -6,148 +6,198 @@ import { api, clearTokens } from "@/lib/api";
 import { useVault } from "@/context/VaultContext";
 import { Button } from "@/components/ui/Button";
 import { AppShell } from "@/components/AppShell";
-import { User, Lock, Shield, Key, Info, Smartphone, Monitor, X, LogOut, Wallet, FileLock2, Laptop, Verified } from "lucide-react";
+import { 
+  User, 
+  Lock, 
+  ShieldCheck, 
+  Key, 
+  Info, 
+  LogOut, 
+  Wallet as WalletIcon, 
+  Layers, 
+  KeyRound,
+  Shield,
+  Clock,
+  Sparkles
+} from "lucide-react";
+import Link from "next/link";
 
 export default function ProfilePage() {
   const router = useRouter();
   const { vaultKey, email, clearSession, wallets } = useVault();
-  const [loading, setLoading] = useState(false);
-  
+  const [sessionCount, setSessionCount] = useState<number>(1);
+  const [passkeyCount, setPasskeyCount] = useState<number>(0);
+  const [mfaActive, setMfaActive] = useState<boolean>(false);
+
   useEffect(() => {
     if (!vaultKey) {
       router.replace("/login");
+      return;
     }
+    void loadStats();
   }, [vaultKey, router]);
+
+  async function loadStats() {
+    try {
+      const [sessRes, pkRes, mfaRes] = await Promise.allSettled([
+        api.get("/auth/sessions"),
+        api.get("/auth/passkeys"),
+        api.get("/auth/mfa/status"),
+      ]);
+      if (sessRes.status === "fulfilled" && sessRes.value.ok) {
+        const data = await sessRes.value.json();
+        if (Array.isArray(data)) setSessionCount(data.length);
+      }
+      if (pkRes.status === "fulfilled" && pkRes.value.ok) {
+        const data = await pkRes.value.json();
+        if (Array.isArray(data)) setPasskeyCount(data.length);
+      }
+      if (mfaRes.status === "fulfilled" && mfaRes.value.ok) {
+        const data = await mfaRes.value.json();
+        setMfaActive(Boolean(data.mfaEnabled));
+      }
+    } catch {
+      // ignore
+    }
+  }
 
   if (!vaultKey) return null;
 
-  function logout() {
+  async function handleLogout() {
+    try {
+      await api.post("/auth/logout");
+    } catch {
+      // Ignore
+    }
     clearTokens();
     clearSession();
     router.push("/login");
   }
 
   return (
-    <AppShell pageTitle="Profile Settings">
-      <div className="max-w-[700px] mx-auto space-y-6 pb-8">
-        {/* Page Header */}
-        <div className="mb-8">
-          <p className="text-[14px] text-slate-500 mt-2">Manage your identity and cryptographic keys.</p>
+    <AppShell pageTitle="Profile & Cryptographic Identity">
+      <div className="max-w-4xl mx-auto space-y-6">
+        {/* Profile Identity Card */}
+        <div className="panel p-6 sm:p-8 bg-gradient-to-r from-surface-2/60 via-surface to-surface-2/40 border-line relative overflow-hidden flex flex-col sm:flex-row items-center sm:items-start gap-6">
+          <div className="w-20 h-20 rounded-2xl bg-surface-2 border border-accent/40 text-accent flex items-center justify-center font-display text-2xl font-bold shrink-0 shadow-[0_0_25px_-5px_rgb(var(--c-accent)/0.35)]">
+            {email ? email.substring(0, 2).toUpperCase() : "SV"}
+          </div>
+
+          <div className="flex-1 text-center sm:text-left min-w-0">
+            <div className="eyebrow flex items-center justify-center sm:justify-start gap-1.5 mb-1.5">
+              <ShieldCheck size={14} className="text-lime" />
+              <span>Zero-Knowledge Identity</span>
+            </div>
+            <h2 className="font-display text-xl sm:text-2xl font-bold text-fg truncate">
+              {email}
+            </h2>
+            <p className="text-xs text-fg-muted mt-1 leading-relaxed">
+              Master Encryption Key derived locally with Argon2id. Your vault is cryptographically isolated.
+            </p>
+
+            <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 mt-4">
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[10px] font-mono uppercase bg-lime/12 text-lime border border-lime/30">
+                <ShieldCheck size={12} />
+                Client-Side E2EE
+              </span>
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[10px] font-mono uppercase bg-accent/12 text-accent border border-accent/30">
+                <KeyRound size={12} />
+                Vault Key Active
+              </span>
+              {mfaActive && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[10px] font-mono uppercase bg-uv/12 text-uv border border-uv/30">
+                  TOTP 2FA Active
+                </span>
+              )}
+            </div>
+          </div>
         </div>
 
-        {/* Profile Identity Card */}
-        <section className="bg-surface rounded-xl p-[28px] border border-border-light shadow-sm flex flex-col md:flex-row items-center md:items-start gap-8 relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-64 h-64 bg-primary-light rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none"></div>
-          
-          <div className="w-24 h-24 rounded-full bg-primary text-white flex items-center justify-center text-[32px] font-bold relative shadow-md shrink-0 border-4 border-white">
-            {email?.substring(0, 2).toUpperCase()}
-          </div>
-          
-          <div className="flex-1 text-center md:text-left z-10">
-            <h3 className="text-[24px] font-bold text-slate-900 truncate max-w-full">{email}</h3>
-            <p className="text-[14px] text-slate-600 mb-4">Zero-Knowledge Encrypted</p>
-            <div className="flex flex-wrap justify-center md:justify-start gap-3">
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-success-bg text-success-text text-[12px] font-semibold tracking-wider uppercase">
-                <Verified size={16} />
-                Identity Verified
-              </span>
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary-light text-primary-dark text-[12px] font-semibold tracking-wider uppercase">
-                <Key size={16} />
-                Vault Active
-              </span>
+        {/* Identity & Key Metrics Strip */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="panel p-4 bg-surface-2/30">
+            <div className="flex justify-between items-center text-xs text-fg-subtle mb-2">
+              <span className="font-mono text-[10px] uppercase">Connected Wallets</span>
+              <WalletIcon size={16} className="text-accent" />
             </div>
+            <div className="font-display text-2xl font-bold text-fg">{wallets.length}</div>
+            <p className="text-[11px] text-fg-subtle mt-1 font-mono">
+              Partitioned vault namespaces
+            </p>
           </div>
-          
-          <div className="md:self-center z-10">
-            <Button variant="ghost" className="bg-surface border-[1.5px] border-border-light text-slate-700">
-              Edit Profile
-            </Button>
-          </div>
-        </section>
 
-        {/* Stats Grid */}
-        <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="bg-surface rounded-xl p-6 border border-border-light shadow-sm flex flex-col items-center text-center hover:-translate-y-1 transition-transform duration-300">
-            <div className="w-12 h-12 bg-primary-light text-primary rounded-full flex items-center justify-center mb-3">
-              <Wallet size={24} />
+          <div className="panel p-4 bg-surface-2/30">
+            <div className="flex justify-between items-center text-xs text-fg-subtle mb-2">
+              <span className="font-mono text-[10px] uppercase">Registered Passkeys</span>
+              <Key size={16} className="text-uv" />
             </div>
-            <span className="text-[28px] font-bold text-slate-900 block">{wallets.length}</span>
-            <span className="text-[12px] font-semibold tracking-wider text-slate-500 uppercase mt-1">Connected Wallets</span>
+            <div className="font-display text-2xl font-bold text-fg">{passkeyCount}</div>
+            <p className="text-[11px] text-fg-subtle mt-1 font-mono">
+              FIDO2 / WebAuthn devices
+            </p>
           </div>
-          
-          <div className="bg-surface rounded-xl p-6 border border-border-light shadow-sm flex flex-col items-center text-center hover:-translate-y-1 transition-transform duration-300">
-            <div className="w-12 h-12 bg-slate-100 text-slate-600 rounded-full flex items-center justify-center mb-3">
-              <FileLock2 size={24} />
-            </div>
-            <span className="text-[28px] font-bold text-slate-900 block">--</span>
-            <span className="text-[12px] font-semibold tracking-wider text-slate-500 uppercase mt-1">Saved Credentials</span>
-          </div>
-          
-          <div className="bg-surface rounded-xl p-6 border border-border-light shadow-sm flex flex-col items-center text-center hover:-translate-y-1 transition-transform duration-300">
-            <div className="w-12 h-12 bg-success-bg text-success rounded-full flex items-center justify-center mb-3">
-              <Monitor size={24} />
-            </div>
-            <span className="text-[28px] font-bold text-slate-900 block">1</span>
-            <span className="text-[12px] font-semibold tracking-wider text-slate-500 uppercase mt-1">Active Sessions</span>
-          </div>
-        </section>
 
-        {/* Security Settings */}
-        <section className="bg-surface rounded-xl border border-border-light shadow-sm overflow-hidden">
-          <div className="p-6 border-b border-border-light">
-            <h3 className="text-[18px] font-semibold text-slate-900">Master Password</h3>
+          <div className="panel p-4 bg-surface-2/30">
+            <div className="flex justify-between items-center text-xs text-fg-subtle mb-2">
+              <span className="font-mono text-[10px] uppercase">Active Sessions</span>
+              <Clock size={16} className="text-lime" />
+            </div>
+            <div className="font-display text-2xl font-bold text-fg">{sessionCount}</div>
+            <p className="text-[11px] text-fg-subtle mt-1 font-mono">
+              Authorized client instances
+            </p>
           </div>
-          <div className="bg-primary-light/50 p-6 flex items-start gap-4 border-b border-primary-light">
-            <Info size={24} className="text-primary mt-0.5 shrink-0" />
+        </div>
+
+        {/* Cryptographic Key Architecture Explanation */}
+        <div className="panel p-6 space-y-4">
+          <div className="flex items-center gap-2.5 pb-3 border-b border-line">
+            <KeyRound size={18} className="text-accent" />
+            <h3 className="font-display text-sm font-bold text-fg">
+              Master Password & Cryptographic Isolation
+            </h3>
+          </div>
+
+          <div className="p-4 rounded-xl bg-accent/10 border border-accent/25 flex items-start gap-3">
+            <Info size={18} className="text-accent shrink-0 mt-0.5" />
+            <div className="text-xs text-fg leading-relaxed">
+              <p className="font-semibold text-accent mb-1 font-mono">
+                Your Master Password is never transmitted to any server.
+              </p>
+              When you authenticate, the client performs memory-hard Argon2id key derivation to calculate your Master Encryption Key (MEK) and an authentication hash. Sentinel Vault servers only store the authentication hash and ciphertext. If your master password is lost, recovery without pre-generated recovery codes is mathematically impossible.
+            </div>
+          </div>
+
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-2">
             <div>
-              <p className="text-[14px] text-slate-800 font-medium mb-1">Your Master Password is critical.</p>
-              <p className="text-[14px] text-slate-600">
-                Sentinel Vault does not store your Master Password. If you forget it, you will lose access to all encrypted data permanently. Changing your password will re-encrypt your vault.
+              <div className="text-xs font-semibold text-fg">Security & Recovery Keys</div>
+              <div className="text-xs text-fg-muted mt-0.5">
+                Manage hardware keys, TOTP authenticators, and emergency recovery codes.
+              </div>
+            </div>
+            <Link href="/settings/security">
+              <Button variant="secondary" size="sm">
+                Open Security Center
+              </Button>
+            </Link>
+          </div>
+        </div>
+
+        {/* Danger Zone: Device Logout */}
+        <div className="panel p-6 border-danger/35 bg-danger/5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h4 className="font-display text-sm font-bold text-danger">Lock Device & Session</h4>
+              <p className="text-xs text-fg-muted mt-0.5">
+                Revoke your current access token, purge the Master Encryption Key from memory, and return to login.
               </p>
             </div>
-          </div>
-          <div className="p-6">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-              <div>
-                <h4 className="text-[14px] font-medium text-slate-900">Change Master Password</h4>
-                <p className="text-[14px] text-slate-500 mt-1">Last changed: Never</p>
-              </div>
-              <Button variant="ghost" className="border-[1.5px] border-border-light text-slate-700 bg-white hover:bg-slate-50">
-                <Key size={18} className="mr-2" />
-                Change Password
-              </Button>
-            </div>
-          </div>
-        </section>
-
-        {/* Storage Quota */}
-        <section className="bg-surface rounded-xl border border-border-light shadow-sm p-6">
-          <h3 className="text-[18px] font-semibold text-slate-900 mb-4">Storage Quota</h3>
-          <div className="space-y-3">
-            <div className="flex justify-between text-[12px] font-mono text-slate-500 font-semibold tracking-wider">
-              <span>0.1 MB</span>
-              <span>100 MB</span>
-            </div>
-            <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden border border-slate-200">
-              <div className="h-full bg-primary rounded-full transition-all" style={{ width: "1%" }}></div>
-            </div>
-            <p className="text-[14px] text-slate-500">Enterprise Plan • Encrypted Blob Storage</p>
-          </div>
-        </section>
-
-        {/* Danger Zone */}
-        <section className="bg-surface rounded-xl border border-border-light shadow-sm p-6 mt-8">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-            <div>
-              <h3 className="text-[18px] font-semibold text-danger">Danger Zone</h3>
-              <p className="text-[14px] text-slate-500 mt-1">Sign out of this device and lock the local vault cache.</p>
-            </div>
-            <Button onClick={logout} variant="danger" className="shrink-0 w-full md:w-auto h-11 px-6 shadow-[0_4px_14px_0_rgba(244,63,94,0.39)] hover:shadow-[0_6px_20px_rgba(244,63,94,0.23)] border-0">
-              <LogOut size={18} className="mr-2" />
-              Sign Out Device
+            <Button variant="danger" size="sm" onClick={handleLogout} className="shrink-0">
+              <LogOut size={14} className="mr-1.5" />
+              <span>Lock Vault & Sign Out</span>
             </Button>
           </div>
-        </section>
+        </div>
       </div>
     </AppShell>
   );

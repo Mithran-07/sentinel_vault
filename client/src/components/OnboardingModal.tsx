@@ -1,38 +1,34 @@
 "use client";
 
 import { useState } from "react";
+import { Shield, KeyRound, Activity, ChevronRight, Check } from "lucide-react";
+import { Button } from "@/components/ui/Button";
 
 export function OnboardingModal({ onComplete }: { onComplete: () => void }) {
   const [step, setStep] = useState(0);
 
   const steps = [
     {
-      title: "Welcome to your Vault",
-      description: "Your enterprise-grade password manager is ready. Before you start saving passwords, let's quickly review how your data is protected.",
-      icon: (
-        <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-        </svg>
-      )
+      title: "Welcome to Sentinel Vault",
+      eyebrow: "ARCHITECTURE BRIEFING",
+      description: "An enterprise-grade credential security platform engineered with zero-knowledge cryptographic guarantees. Your plaintext secrets are never seen by any server.",
+      icon: Shield,
+      accent: "text-accent",
     },
     {
-      title: "Zero-Knowledge Architecture",
-      description: "Everything you save is encrypted locally on your device before it's synced. We never see your master password or your unencrypted data.",
-      icon: (
-        <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-        </svg>
-      )
+      title: "Client-Side Zero-Knowledge",
+      eyebrow: "CRYPTOGRAPHIC DESIGN",
+      description: "Your Master Key is derived locally in browser memory via Argon2id. Every credential item is encrypted with AES-256-GCM before transport. The database only ever receives opaque ciphertext.",
+      icon: KeyRound,
+      accent: "text-uv",
     },
     {
-      title: "Monitor Your Security",
-      description: "Use the Health Dashboard to identify weak or reused passwords, and check the Audit Log to review all account activity and login attempts.",
-      icon: (
-        <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
-        </svg>
-      )
-    }
+      title: "Security & Threat Posture",
+      eyebrow: "CONTINUOUS COMPLIANCE",
+      description: "Audit every access event with immutable hash-chained logs, configure passkeys and TOTP factors, and monitor password reuse locally without telemetry leakage.",
+      icon: Activity,
+      accent: "text-lime",
+    },
   ];
 
   const handleNext = () => {
@@ -43,45 +39,62 @@ export function OnboardingModal({ onComplete }: { onComplete: () => void }) {
     }
   };
 
+  const StepIcon = steps[step].icon;
+
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm px-4 transition-all">
-      <div className="w-full max-w-lg rounded-3xl border border-border/50 bg-surface p-1 shadow-2xl overflow-hidden">
-        <div className="p-8 sm:p-10">
-          <div className="flex justify-center mb-8">
-            <div className="w-16 h-16 rounded-2xl bg-accent flex items-center justify-center shadow-lg shadow-accent/20">
-              {steps[step].icon}
-            </div>
+    <div
+      role="dialog"
+      aria-modal="true"
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-canvas/85 backdrop-blur-md px-4 animate-fade-in"
+    >
+      <div className="w-full max-w-md rounded-2xl border border-line bg-surface p-6 shadow-pop animate-pop-in">
+        <div className="flex flex-col items-center text-center">
+          {/* Icon Badge */}
+          <div className="w-14 h-14 rounded-2xl bg-surface-2 border border-line flex items-center justify-center mb-4 shadow-[0_0_24px_-4px_rgb(var(--c-accent)/0.3)]">
+            <StepIcon size={26} className={steps[step].accent} />
           </div>
-          
-          <div className="text-center min-h-[120px]">
-            <h2 className="text-2xl font-bold tracking-tight text-foreground mb-4">{steps[step].title}</h2>
-            <p className="text-foreground/70 leading-relaxed">
-              {steps[step].description}
-            </p>
-          </div>
-          
-          <div className="flex justify-center gap-2 mt-8 mb-10">
+
+          <div className="eyebrow mb-1.5">{steps[step].eyebrow}</div>
+          <h2 className="font-display text-lg font-bold text-fg mb-3">
+            {steps[step].title}
+          </h2>
+          <p className="text-xs text-fg-muted leading-relaxed min-h-[64px] max-w-sm">
+            {steps[step].description}
+          </p>
+
+          {/* Stepper Dots */}
+          <div className="flex items-center gap-1.5 my-6">
             {steps.map((_, i) => (
-              <div 
-                key={i} 
-                className={`h-1.5 rounded-full transition-all duration-300 ${i === step ? 'w-8 bg-accent' : 'w-2 bg-border'}`}
+              <div
+                key={i}
+                className={`h-1.5 rounded-full transition-all duration-300 ${
+                  i === step ? "w-6 bg-accent" : "w-1.5 bg-surface-3"
+                }`}
               />
             ))}
           </div>
-          
-          <div className="flex items-center justify-between">
-            <button 
-              onClick={onComplete}
-              className="text-sm font-medium text-foreground/50 hover:text-foreground transition-colors"
-            >
-              Skip
-            </button>
+
+          {/* Actions */}
+          <div className="w-full flex items-center justify-between pt-2">
             <button
-              onClick={handleNext}
-              className="rounded-lg bg-accent px-6 py-2.5 text-sm font-medium text-white hover:bg-accent-hover transition-colors shadow-sm"
+              onClick={onComplete}
+              className="text-xs text-fg-subtle hover:text-fg transition-colors"
             >
-              {step === steps.length - 1 ? "Get Started" : "Next"}
+              Skip Introduction
             </button>
+            <Button onClick={handleNext} variant="primary" size="sm">
+              {step === steps.length - 1 ? (
+                <>
+                  <span>Enter Vault</span>
+                  <Check size={14} className="ml-1" />
+                </>
+              ) : (
+                <>
+                  <span>Continue</span>
+                  <ChevronRight size={14} className="ml-1" />
+                </>
+              )}
+            </Button>
           </div>
         </div>
       </div>

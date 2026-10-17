@@ -2,12 +2,27 @@
 
 import { useState } from "react";
 import { generatePassword, estimateStrength } from "@/lib/generator";
-import { X, Lock, Eye, EyeOff, LogIn, FileText, CreditCard, User, Key, Terminal } from "lucide-react";
+import { 
+  X, 
+  Lock, 
+  Eye, 
+  EyeOff, 
+  LogIn, 
+  FileText, 
+  CreditCard, 
+  User, 
+  Key, 
+  Terminal, 
+  RefreshCw,
+  Copy,
+  Check,
+  ShieldCheck,
+  Wallet as WalletIcon
+} from "lucide-react";
+import { useVault } from "@/context/VaultContext";
+import { Button } from "@/components/ui/Button";
 
 // ── Discriminated union for all 6 vault item types ───────────────────────────
-// All fields are encrypted as a single JSON blob — the server sees only
-// the `type` enum (for filtering) and the opaque ciphertext.
-
 export type ItemType = "LOGIN" | "SECURE_NOTE" | "CARD" | "IDENTITY" | "SSH_KEY" | "API_CREDENTIAL";
 
 export type LoginPayload    = { type: "LOGIN";          name: string; username: string; password: string; url: string; totp: string; notes: string };
@@ -22,7 +37,7 @@ export type ItemPayload = LoginPayload | NotePayload | CardPayload | IdentityPay
 const TYPE_LABELS: Record<ItemType, string> = {
   LOGIN:          "Login",
   SECURE_NOTE:    "Secure Note",
-  CARD:           "Card",
+  CARD:           "Payment Card",
   IDENTITY:       "Identity",
   SSH_KEY:        "SSH Key",
   API_CREDENTIAL: "API Credential",
@@ -48,10 +63,6 @@ function defaultPayload(type: ItemType): ItemPayload {
   }
 }
 
-// ── Component ────────────────────────────────────────────────────────────────
-
-import { useVault } from "@/context/VaultContext";
-
 export function ItemModal({
   initial,
   onSave,
@@ -65,16 +76,16 @@ export function ItemModal({
 }) {
   const { wallets, activeWalletId } = useVault();
   const [selectedWalletId, setSelectedWalletId] = useState<string>(
-    initialWalletId || activeWalletId || ""
+    initialWalletId || activeWalletId || (wallets[0]?.id ?? "")
   );
   const [selectedType, setSelectedType] = useState<ItemType>(initial?.type ?? "LOGIN");
   const [data, setData] = useState<ItemPayload>(initial ?? defaultPayload("LOGIN"));
   const [showPassword, setShowPassword] = useState(false);
   const [showSensitive, setShowSensitive] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   function handleTypeChange(type: ItemType) {
     setSelectedType(type);
-    // Preserve name if already filled, otherwise reset to defaults for new type.
     const existing = data as Record<string, unknown>;
     const next = { ...defaultPayload(type), name: existing.name ?? "" } as ItemPayload;
     setData(next);
@@ -83,55 +94,94 @@ export function ItemModal({
   const d = data as Record<string, unknown>;
   const set = (field: string, value: string) => setData({ ...data, [field]: value } as ItemPayload);
 
+  async function handleFormSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!d.name || !selectedWalletId) return;
+    setIsSaving(true);
+    try {
+      await onSave(data, selectedWalletId);
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm px-4">
-      <div className="bg-surface w-full max-w-[600px] rounded-xl border border-border shadow-[0px_4px_12px_rgba(15,23,42,0.05)] overflow-hidden flex flex-col max-h-[90vh]">
-        {/* Modal Header */}
-        <div className="px-6 py-4 border-b border-border flex justify-between items-center bg-surface sticky top-0 z-10">
-          <h2 className="font-headline-md text-headline-md text-text">
-            {initial ? `Edit ${TYPE_LABELS[selectedType]}` : "New Credential"}
-          </h2>
-          <button onClick={onClose} className="text-text-muted hover:text-text transition-colors">
-            <X className="w-5 h-5" />
+    <div
+      role="dialog"
+      aria-modal="true"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-canvas/80 backdrop-blur-md p-4 animate-fade-in"
+    >
+      <div className="fixed inset-0" onClick={onClose} aria-hidden="true" />
+      <div
+        className="relative bg-surface border border-line rounded-2xl shadow-pop w-full max-w-[620px] overflow-hidden z-10 flex flex-col max-h-[92vh] animate-pop-in"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="px-6 py-4.5 border-b border-line flex items-center justify-between bg-surface-2/40">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-surface border border-accent/30 text-accent flex items-center justify-center">
+              <Lock size={16} />
+            </div>
+            <div>
+              <h2 className="font-display text-base font-bold text-fg tracking-tight">
+                {initial ? `Edit ${TYPE_LABELS[selectedType]}` : "New Credential"}
+              </h2>
+              <p className="text-[11px] font-mono text-accent">
+                Client-side AES-256-GCM encryption
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            className="p-1.5 text-fg-subtle hover:text-fg hover:bg-surface-2 rounded-lg transition-colors"
+          >
+            <X size={18} />
           </button>
         </div>
 
-        {/* Modal Content */}
-        <div className="p-6 flex flex-col gap-6 overflow-y-auto">
-          {/* Wallet Selector */}
-          <div className="flex flex-col gap-1">
-            <label className="font-label-md text-label-md text-text-muted">Wallet Destination</label>
+        {/* Content Body */}
+        <form onSubmit={handleFormSubmit} className="p-6 flex flex-col gap-5 overflow-y-auto flex-1">
+          {/* Destination Wallet */}
+          <div className="flex flex-col gap-1.5">
+            <label className="label flex items-center gap-1.5">
+              <WalletIcon size={14} className="text-accent" />
+              <span>Wallet Destination</span>
+            </label>
             <select
               value={selectedWalletId}
               onChange={(e) => setSelectedWalletId(e.target.value)}
-              className="w-full px-3 py-2 bg-background border border-border rounded-lg font-body-sm text-body-sm text-text focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 transition-all appearance-none"
+              className="field appearance-none cursor-pointer"
             >
-              {wallets.map(w => (
-                <option key={w.id} value={w.id}>{w.name} {w.type === "EXTERNAL" ? "(External)" : ""}</option>
+              {wallets.map((w) => (
+                <option key={w.id} value={w.id}>
+                  {w.name} {w.type === "EXTERNAL" ? "— (External)" : "— (Internal)"}
+                </option>
               ))}
             </select>
           </div>
 
-          {/* Type selector (only shown for new items) */}
+          {/* Type Selector (New items only) */}
           {!initial && (
-            <div className="flex flex-col gap-1">
-              <label className="font-label-md text-label-md text-text-muted">Item Type</label>
-              <div className="flex flex-wrap p-1 bg-background rounded-lg gap-1 border border-border">
+            <div className="flex flex-col gap-1.5">
+              <label className="label">Item Category</label>
+              <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5 p-1 bg-surface-2/60 rounded-xl border border-line">
                 {(Object.keys(TYPE_LABELS) as ItemType[]).map((type) => {
                   const Icon = TYPE_ICONS[type];
+                  const isSelected = selectedType === type;
                   return (
                     <button
                       key={type}
                       type="button"
                       onClick={() => handleTypeChange(type)}
-                      className={`flex-1 min-w-[100px] py-2 px-2 rounded-md font-label-md text-label-md transition-colors flex items-center justify-center gap-2 ${
-                        selectedType === type
-                          ? "bg-surface text-primary shadow-sm border border-border"
-                          : "text-text-muted hover:bg-surface"
+                      className={`flex flex-col items-center justify-center py-2 px-1 rounded-lg text-xs transition-all ${
+                        isSelected
+                          ? "bg-surface text-accent font-semibold border border-accent/40 shadow-sm"
+                          : "text-fg-subtle hover:text-fg hover:bg-surface/50"
                       }`}
                     >
-                      <Icon className="w-[18px] h-[18px]" />
-                      <span className="truncate">{TYPE_LABELS[type]}</span>
+                      <Icon size={16} className="mb-1" />
+                      <span className="truncate text-[10px]">{TYPE_LABELS[type]}</span>
                     </button>
                   );
                 })}
@@ -139,133 +189,364 @@ export function ItemModal({
             </div>
           )}
 
-        {/* Common: Name */}
-        <div className="space-y-4">
-          <Input label="Name" value={String(d.name ?? "")} onChange={(v) => set("name", v)} placeholder={`e.g. ${selectedType === "LOGIN" ? "GitHub" : selectedType === "CARD" ? "Visa Debit" : "My " + TYPE_LABELS[selectedType]}`} />
-
-          {/* ── LOGIN fields ── */}
-          {selectedType === "LOGIN" && <>
-            <Input label="Username" value={String(d.username ?? "")} onChange={(v) => set("username", v)} placeholder="name@example.com" />
-            <PasswordField
-              value={String(d.password ?? "")}
-              show={showPassword}
-              onToggleShow={() => setShowPassword(s => !s)}
-              onChange={(v) => set("password", v)}
-            />
-            <Input label="URL" value={String(d.url ?? "")} onChange={(v) => set("url", v)} placeholder="https://example.com" />
-            <Input label="TOTP Secret (optional)" value={String(d.totp ?? "")} onChange={(v) => set("totp", v)} placeholder="Base32 secret key" />
-            <TextArea label="Notes" value={String(d.notes ?? "")} onChange={(v) => set("notes", v)} />
-          </>}
-
-          {/* ── SECURE_NOTE fields ── */}
-          {selectedType === "SECURE_NOTE" && <>
-            <TextArea label="Content" value={String(d.content ?? "")} onChange={(v) => set("content", v)} rows={8} placeholder="Your private note..." />
-          </>}
-
-          {/* ── CARD fields ── */}
-          {selectedType === "CARD" && <>
-            <Input label="Cardholder Name" value={String(d.cardholder ?? "")} onChange={(v) => set("cardholder", v)} placeholder="Jane Smith" />
-            <Input label="Card Number" value={String(d.number ?? "")} onChange={(v) => set("number", v)} placeholder="4242 4242 4242 4242" mono />
-            <div className="grid grid-cols-2 gap-3">
-              <Input label="Expiry" value={String(d.expiry ?? "")} onChange={(v) => set("expiry", v)} placeholder="MM/YY" />
-              <div>
-                <div className="mb-1.5 flex items-center justify-between">
-                  <label className="text-sm font-medium text-foreground/80">CVV</label>
-                  <button type="button" onClick={() => setShowSensitive(s => !s)} className="text-xs text-foreground/50 hover:text-foreground">{showSensitive ? "Hide" : "Show"}</button>
-                </div>
-                <input
-                  type={showSensitive ? "text" : "password"}
-                  value={String(d.cvv ?? "")}
-                  onChange={(e) => set("cvv", e.target.value)}
-                  placeholder="•••"
-                  maxLength={4}
-                  className="w-full rounded-lg border border-border bg-background px-4 py-2.5 font-mono text-sm text-foreground placeholder:text-foreground/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background transition-colors"
-                />
-              </div>
-            </div>
-            <TextArea label="Notes" value={String(d.notes ?? "")} onChange={(v) => set("notes", v)} />
-          </>}
-
-          {/* ── IDENTITY fields ── */}
-          {selectedType === "IDENTITY" && <>
-            <div className="grid grid-cols-2 gap-3">
-              <Input label="First Name" value={String(d.firstName ?? "")} onChange={(v) => set("firstName", v)} placeholder="Jane" />
-              <Input label="Last Name" value={String(d.lastName ?? "")} onChange={(v) => set("lastName", v)} placeholder="Smith" />
-            </div>
-            <Input label="Email" value={String(d.email ?? "")} onChange={(v) => set("email", v)} placeholder="jane@example.com" />
-            <Input label="Phone" value={String(d.phone ?? "")} onChange={(v) => set("phone", v)} placeholder="+91 98765 43210" />
-            <TextArea label="Address" value={String(d.address ?? "")} onChange={(v) => set("address", v)} rows={3} placeholder="123 Main St, City, Country" />
-            <TextArea label="Notes" value={String(d.notes ?? "")} onChange={(v) => set("notes", v)} />
-          </>}
-
-          {/* ── SSH_KEY fields ── */}
-          {selectedType === "SSH_KEY" && <>
-            <TextArea label="Private Key" value={String(d.privateKey ?? "")} onChange={(v) => set("privateKey", v)} rows={6} placeholder="-----BEGIN OPENSSH PRIVATE KEY-----" mono />
-            <TextArea label="Public Key" value={String(d.publicKey ?? "")} onChange={(v) => set("publicKey", v)} rows={3} placeholder="ssh-ed25519 AAAA..." mono />
-            <Input label="Passphrase (if any)" value={String(d.passphrase ?? "")} onChange={(v) => set("passphrase", v)} placeholder="Key passphrase" type="password" />
-            <TextArea label="Notes" value={String(d.notes ?? "")} onChange={(v) => set("notes", v)} />
-          </>}
-
-          {/* ── API_CREDENTIAL fields ── */}
-          {selectedType === "API_CREDENTIAL" && <>
+          {/* Item Name */}
+          <div className="space-y-4">
             <div>
-              <div className="mb-1.5 flex items-center justify-between">
-                <label className="text-sm font-medium text-foreground/80">API Key</label>
-                <button type="button" onClick={() => setShowSensitive(s => !s)} className="text-xs text-foreground/50 hover:text-foreground">{showSensitive ? "Hide" : "Show"}</button>
-              </div>
+              <label className="label">Display Name *</label>
               <input
-                type={showSensitive ? "text" : "password"}
-                value={String(d.key ?? "")}
-                onChange={(e) => set("key", e.target.value)}
-                placeholder="sk-..."
-                className="w-full rounded-lg border border-border bg-background px-4 py-2.5 font-mono text-sm text-foreground placeholder:text-foreground/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background transition-colors"
+                required
+                type="text"
+                value={String(d.name ?? "")}
+                onChange={(e) => set("name", e.target.value)}
+                placeholder={`e.g. ${selectedType === "LOGIN" ? "GitHub Account" : selectedType === "CARD" ? "Primary Visa" : "Production " + TYPE_LABELS[selectedType]}`}
+                className="field"
               />
             </div>
-            <Input label="API Secret (optional)" value={String(d.secret ?? "")} onChange={(v) => set("secret", v)} placeholder="Secret key or token" type="password" />
-            <Input label="Endpoint / Base URL (optional)" value={String(d.endpoint ?? "")} onChange={(v) => set("endpoint", v)} placeholder="https://api.example.com" />
-            <TextArea label="Notes" value={String(d.notes ?? "")} onChange={(v) => set("notes", v)} />
-          </>}
-        </div>
 
-        </div>
-        
-        {/* Modal Footer */}
-        <div className="px-6 py-4 border-t border-border bg-surface flex justify-between items-center sticky bottom-0 z-10">
-          <div className="flex items-center gap-2 text-text-muted">
-            <Lock className="w-4 h-4" />
-            <span className="font-body-sm text-body-sm font-semibold hidden sm:inline">Encrypted in your browser</span>
+            {/* ── LOGIN ── */}
+            {selectedType === "LOGIN" && (
+              <>
+                <div>
+                  <label className="label">Username / Email</label>
+                  <input
+                    type="text"
+                    value={String(d.username ?? "")}
+                    onChange={(e) => set("username", e.target.value)}
+                    placeholder="name@example.com"
+                    className="field"
+                  />
+                </div>
+                <PasswordField
+                  value={String(d.password ?? "")}
+                  show={showPassword}
+                  onToggleShow={() => setShowPassword((s) => !s)}
+                  onChange={(v) => set("password", v)}
+                />
+                <div>
+                  <label className="label">Website URL</label>
+                  <input
+                    type="url"
+                    value={String(d.url ?? "")}
+                    onChange={(e) => set("url", e.target.value)}
+                    placeholder="https://example.com"
+                    className="field"
+                  />
+                </div>
+                <div>
+                  <label className="label">TOTP Seed / Secret (Optional)</label>
+                  <input
+                    type="text"
+                    value={String(d.totp ?? "")}
+                    onChange={(e) => set("totp", e.target.value)}
+                    placeholder="Base32 authenticator secret"
+                    className="field font-mono text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="label">Notes</label>
+                  <textarea
+                    rows={3}
+                    value={String(d.notes ?? "")}
+                    onChange={(e) => set("notes", e.target.value)}
+                    placeholder="Additional encrypted notes..."
+                    className="field h-auto py-2 resize-y"
+                  />
+                </div>
+              </>
+            )}
+
+            {/* ── SECURE NOTE ── */}
+            {selectedType === "SECURE_NOTE" && (
+              <div>
+                <label className="label">Encrypted Note Content *</label>
+                <textarea
+                  rows={8}
+                  value={String(d.content ?? "")}
+                  onChange={(e) => set("content", e.target.value)}
+                  placeholder="Type sensitive notes, recovery phrases, or private records..."
+                  className="field h-auto py-2.5 resize-y font-mono text-xs leading-relaxed"
+                />
+              </div>
+            )}
+
+            {/* ── CARD ── */}
+            {selectedType === "CARD" && (
+              <>
+                <div>
+                  <label className="label">Cardholder Name</label>
+                  <input
+                    type="text"
+                    value={String(d.cardholder ?? "")}
+                    onChange={(e) => set("cardholder", e.target.value)}
+                    placeholder="Jane Doe"
+                    className="field"
+                  />
+                </div>
+                <div>
+                  <label className="label">Card Number</label>
+                  <input
+                    type="text"
+                    value={String(d.number ?? "")}
+                    onChange={(e) => set("number", e.target.value)}
+                    placeholder="4532 •••• •••• 8892"
+                    className="field font-mono text-xs"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="label">Expiry (MM/YY)</label>
+                    <input
+                      type="text"
+                      value={String(d.expiry ?? "")}
+                      onChange={(e) => set("expiry", e.target.value)}
+                      placeholder="08/28"
+                      className="field font-mono text-xs"
+                    />
+                  </div>
+                  <div>
+                    <div className="flex justify-between items-center mb-1">
+                      <label className="label mb-0">CVV / CVC</label>
+                      <button
+                        type="button"
+                        onClick={() => setShowSensitive((s) => !s)}
+                        className="text-[10px] text-accent hover:underline font-mono"
+                      >
+                        {showSensitive ? "Hide" : "Reveal"}
+                      </button>
+                    </div>
+                    <input
+                      type={showSensitive ? "text" : "password"}
+                      maxLength={4}
+                      value={String(d.cvv ?? "")}
+                      onChange={(e) => set("cvv", e.target.value)}
+                      placeholder="•••"
+                      className="field font-mono text-xs"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="label">Notes</label>
+                  <textarea
+                    rows={2}
+                    value={String(d.notes ?? "")}
+                    onChange={(e) => set("notes", e.target.value)}
+                    className="field h-auto py-2 resize-y"
+                  />
+                </div>
+              </>
+            )}
+
+            {/* ── IDENTITY ── */}
+            {selectedType === "IDENTITY" && (
+              <>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="label">First Name</label>
+                    <input
+                      type="text"
+                      value={String(d.firstName ?? "")}
+                      onChange={(e) => set("firstName", e.target.value)}
+                      placeholder="Jane"
+                      className="field"
+                    />
+                  </div>
+                  <div>
+                    <label className="label">Last Name</label>
+                    <input
+                      type="text"
+                      value={String(d.lastName ?? "")}
+                      onChange={(e) => set("lastName", e.target.value)}
+                      placeholder="Doe"
+                      className="field"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="label">Email Address</label>
+                  <input
+                    type="email"
+                    value={String(d.email ?? "")}
+                    onChange={(e) => set("email", e.target.value)}
+                    placeholder="jane@example.com"
+                    className="field"
+                  />
+                </div>
+                <div>
+                  <label className="label">Phone Number</label>
+                  <input
+                    type="tel"
+                    value={String(d.phone ?? "")}
+                    onChange={(e) => set("phone", e.target.value)}
+                    placeholder="+1 555 0192"
+                    className="field"
+                  />
+                </div>
+                <div>
+                  <label className="label">Address</label>
+                  <textarea
+                    rows={2}
+                    value={String(d.address ?? "")}
+                    onChange={(e) => set("address", e.target.value)}
+                    placeholder="Street, City, Country"
+                    className="field h-auto py-2 resize-y"
+                  />
+                </div>
+              </>
+            )}
+
+            {/* ── SSH KEY ── */}
+            {selectedType === "SSH_KEY" && (
+              <>
+                <div>
+                  <label className="label">Private Key *</label>
+                  <textarea
+                    rows={6}
+                    value={String(d.privateKey ?? "")}
+                    onChange={(e) => set("privateKey", e.target.value)}
+                    placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"
+                    className="field h-auto py-2 font-mono text-xs leading-relaxed"
+                  />
+                </div>
+                <div>
+                  <label className="label">Public Key</label>
+                  <textarea
+                    rows={2}
+                    value={String(d.publicKey ?? "")}
+                    onChange={(e) => set("publicKey", e.target.value)}
+                    placeholder="ssh-ed25519 AAAA..."
+                    className="field h-auto py-2 font-mono text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="label">Passphrase (optional)</label>
+                  <input
+                    type="password"
+                    value={String(d.passphrase ?? "")}
+                    onChange={(e) => set("passphrase", e.target.value)}
+                    className="field font-mono text-xs"
+                  />
+                </div>
+              </>
+            )}
+
+            {/* ── API CREDENTIAL ── */}
+            {selectedType === "API_CREDENTIAL" && (
+              <>
+                <div>
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="label mb-0">API Key / Token *</label>
+                    <button
+                      type="button"
+                      onClick={() => setShowSensitive((s) => !s)}
+                      className="text-[10px] text-accent hover:underline font-mono"
+                    >
+                      {showSensitive ? "Hide" : "Reveal"}
+                    </button>
+                  </div>
+                  <input
+                    type={showSensitive ? "text" : "password"}
+                    value={String(d.key ?? "")}
+                    onChange={(e) => set("key", e.target.value)}
+                    placeholder="sk_live_..."
+                    className="field font-mono text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="label">API Secret (Optional)</label>
+                  <input
+                    type="password"
+                    value={String(d.secret ?? "")}
+                    onChange={(e) => set("secret", e.target.value)}
+                    placeholder="Secret token or signature"
+                    className="field font-mono text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="label">Endpoint / Base URL (Optional)</label>
+                  <input
+                    type="url"
+                    value={String(d.endpoint ?? "")}
+                    onChange={(e) => set("endpoint", e.target.value)}
+                    placeholder="https://api.service.com/v1"
+                    className="field"
+                  />
+                </div>
+              </>
+            )}
           </div>
-          <div className="flex items-center gap-3">
-            <button onClick={onClose} className="px-4 py-2 bg-background border border-border text-text-muted rounded-lg font-label-md text-label-md hover:bg-border/50 transition-colors">
-              Cancel
-            </button>
-            <button
-              onClick={() => onSave(data, selectedWalletId)}
-              disabled={!d.name || !selectedWalletId}
-              className="px-4 py-2 bg-primary text-white rounded-lg font-label-md text-label-md hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Save Credential
-            </button>
+
+          {/* Footer actions */}
+          <div className="mt-4 pt-4 border-t border-line flex items-center justify-between">
+            <div className="flex items-center gap-1.5 text-[11px] text-fg-subtle font-mono">
+              <ShieldCheck size={14} className="text-lime" />
+              <span>Encrypted in memory before send</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button type="button" variant="ghost" onClick={onClose} disabled={isSaving}>
+                Cancel
+              </Button>
+              <Button type="submit" variant="primary" isLoading={isSaving} disabled={!d.name || !selectedWalletId}>
+                {initial ? "Save Changes" : "Save Credential"}
+              </Button>
+            </div>
           </div>
-        </div>
+        </form>
       </div>
     </div>
   );
 }
 
-// ── Sub-components ────────────────────────────────────────────────────────────
+// ── Sub-component for Password Generation & Strength ────────────────────────
+function PasswordField({
+  value,
+  show,
+  onToggleShow,
+  onChange,
+}: {
+  value: string;
+  show: boolean;
+  onToggleShow: () => void;
+  onChange: (v: string) => void;
+}) {
+  const [copied, setCopied] = useState(false);
 
-function PasswordField({ value, show, onToggleShow, onChange }: { value: string; show: boolean; onToggleShow: () => void; onChange: (v: string) => void }) {
+  function handleGenerate() {
+    const nextPass = generatePassword({
+      length: 22,
+      upper: true,
+      lower: true,
+      digits: true,
+      symbols: true,
+    });
+    onChange(nextPass);
+  }
+
+  function handleCopy() {
+    if (value) {
+      navigator.clipboard.writeText(value);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    }
+  }
+
+  const strength = estimateStrength(value);
+  const strengthStyles = {
+    weak: { bar: "w-1/3 bg-danger", label: "Weak — easily guessable", color: "text-danger" },
+    fair: { bar: "w-2/3 bg-warning", label: "Fair — acceptable", color: "text-warning" },
+    strong: { bar: "w-full bg-lime", label: "Strong — cryptographic grade", color: "text-lime" },
+  };
+
   return (
-    <div className="flex flex-col gap-1">
-      <div className="mb-0.5 flex items-center justify-between">
-        <label className="font-label-md text-label-md text-text-muted">Password</label>
+    <div className="space-y-1.5">
+      <div className="flex items-center justify-between">
+        <label className="label mb-0">Password *</label>
         <button
           type="button"
-          onClick={() => onChange(generatePassword({ length: 20, upper: true, lower: true, digits: true, symbols: true }))}
-          className="text-xs font-medium text-primary hover:text-primary/80 transition-colors"
+          onClick={handleGenerate}
+          className="inline-flex items-center gap-1 text-[11px] font-mono text-accent hover:text-accent-strong transition-colors"
         >
-          Generate Secure
+          <RefreshCw size={12} />
+          <span>Generate Strong (22 chars)</span>
         </button>
       </div>
       <div className="relative">
@@ -273,72 +554,46 @@ function PasswordField({ value, show, onToggleShow, onChange }: { value: string;
           type={show ? "text" : "password"}
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          className="w-full pl-3 pr-10 py-2 bg-background border border-border rounded-lg font-code-mono text-code-mono focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 transition-all text-text"
-          placeholder="••••••••••••"
+          placeholder="••••••••••••••••"
+          className="field pr-20 font-mono text-xs"
         />
-        <button
-          type="button"
-          onClick={onToggleShow}
-          className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-text flex items-center justify-center"
-        >
-          {show ? <EyeOff className="w-[18px] h-[18px]" /> : <Eye className="w-[18px] h-[18px]" />}
-        </button>
+        <div className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-1">
+          {value && (
+            <button
+              type="button"
+              onClick={handleCopy}
+              className="p-1 text-fg-subtle hover:text-fg rounded transition-colors"
+              title="Copy password"
+            >
+              {copied ? <Check size={14} className="text-lime" /> : <Copy size={14} />}
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={onToggleShow}
+            className="p-1 text-fg-subtle hover:text-fg rounded transition-colors"
+            title={show ? "Hide password" : "Show password"}
+          >
+            {show ? <EyeOff size={14} /> : <Eye size={14} />}
+          </button>
+        </div>
       </div>
+
       {value && (
-        <div className="mt-2 flex flex-col gap-1.5">
-          <div className="flex h-1.5 w-full rounded-full overflow-hidden bg-background border border-border">
-            <div className={`h-full transition-all duration-300 ${estimateStrength(value) === 'weak' ? 'bg-danger w-1/3' : estimateStrength(value) === 'fair' ? 'bg-warning w-2/3' : 'bg-success w-full'}`}></div>
+        <div className="pt-1 space-y-1">
+          <div className="h-1.5 w-full rounded-full bg-surface-3 overflow-hidden border border-line">
+            <div className={`h-full transition-all duration-300 ${strengthStyles[strength].bar}`} />
           </div>
-          <p className={`text-xs font-medium ${strengthColor(estimateStrength(value))}`}>
-            Strength: {estimateStrength(value)}
-          </p>
+          <div className="flex justify-between items-center text-[10px] font-mono">
+            <span className={strengthStyles[strength].color}>
+              {strengthStyles[strength].label}
+            </span>
+            <span className="text-fg-subtle">{value.length} characters</span>
+          </div>
         </div>
       )}
     </div>
   );
 }
 
-function Input({ label, value, onChange, placeholder, type = "text", mono = false }: {
-  label: string; value: string; onChange: (v: string) => void;
-  placeholder?: string; type?: string; mono?: boolean;
-}) {
-  return (
-    <div className="flex flex-col gap-1">
-      <label className="font-label-md text-label-md text-text-muted">{label}</label>
-      <input
-        type={type}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        className={`w-full px-3 py-2 bg-background border border-border rounded-lg text-text focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 transition-all ${mono ? "font-code-mono text-code-mono" : "font-body-sm text-body-sm"}`}
-      />
-    </div>
-  );
-}
-
-function TextArea({ label, value, onChange, rows = 3, placeholder, mono = false }: {
-  label: string; value: string; onChange: (v: string) => void;
-  rows?: number; placeholder?: string; mono?: boolean;
-}) {
-  return (
-    <div className="flex flex-col gap-1">
-      <label className="font-label-md text-label-md text-text-muted">{label}</label>
-      <textarea
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        rows={rows}
-        placeholder={placeholder}
-        className={`w-full px-3 py-2 bg-background border border-border rounded-lg text-text focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 transition-all resize-y ${mono ? "font-code-mono text-code-mono text-xs" : "font-body-sm text-body-sm"}`}
-      />
-    </div>
-  );
-}
-
-function strengthColor(s: string) {
-  if (s === "weak") return "text-danger";
-  if (s === "fair") return "text-warning";
-  return "text-success";
-}
-
-// Re-export type helpers for vault page use
 export { TYPE_LABELS, TYPE_ICONS };

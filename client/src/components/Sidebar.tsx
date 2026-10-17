@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { WalletSwitcher } from "@/components/WalletSwitcher";
-import { clearTokens } from "@/lib/api";
+import { clearTokens, api } from "@/lib/api";
 import { Shield, Lock, Trash2, Activity, ScrollText, Building, User, Settings, HelpCircle } from "lucide-react";
 
 interface SidebarProps {
@@ -11,7 +11,12 @@ interface SidebarProps {
 }
 
 export function Sidebar({ activePage, email }: SidebarProps) {
-  function logout() {
+  async function logout() {
+    try {
+      await api.post("/auth/logout");
+    } catch {
+      // Ignore network errors on logout
+    }
     clearTokens();
     window.location.href = "/login";
   }

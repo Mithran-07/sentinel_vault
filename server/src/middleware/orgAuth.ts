@@ -1,6 +1,7 @@
 import { Response, NextFunction } from "express";
 import { prisma } from "../lib/prisma";
 import { AuthedRequest } from "./auth";
+import { logger } from "../lib/logger";
 
 export interface OrgAuthedRequest extends AuthedRequest {
   orgId?: string;
@@ -48,7 +49,7 @@ export async function requireOrgOwnership(
     req.orgMember = member;
     next();
   } catch (error) {
-    console.error("requireOrgOwnership error:", error);
+    logger.error("requireOrgOwnership error:", error);
     res.status(500).json({ error: "Internal server error" });
   }
 }
@@ -90,7 +91,7 @@ export async function requireOrgMembership(
     req.orgMember = member;
     next();
   } catch (error) {
-    console.error("requireOrgMembership error:", error);
+    logger.error("requireOrgMembership error:", error);
     res.status(500).json({ error: "Internal server error" });
   }
 }
@@ -121,7 +122,7 @@ export function requireOrgPermission(permission: string) {
       req.orgMember = member;
       next();
     } catch (error) {
-      console.error("requireOrgPermission error:", error);
+      logger.error("requireOrgPermission error:", error);
       res.status(500).json({ error: "Internal server error" });
     }
   };

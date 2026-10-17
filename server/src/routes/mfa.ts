@@ -9,9 +9,9 @@ import {
   secretProtection,
   generateTotpSetup,
   verifyTotpCode,
-  isMfaChallengeJtiUsed,
-  markMfaChallengeJtiUsed,
+  consumeMfaChallengeJti,
 } from "../lib/mfa";
+import { ChallengeStoreUnavailableError } from "../lib/challenge-store";
 import {
   verifyAccessToken,
   signAccessToken,
@@ -24,21 +24,13 @@ const router = Router();
 // Rate limiter: max 5 TOTP code verification attempts per 5 minutes to prevent PIN brute force
 const totpRateLimiter = rateLimit({
   windowMs: 5 * 60 * 1000,
-  max: 50,
+  max: 5,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: "Too many MFA verification attempts. Please try again in 5 minutes." },
 });
 
-function setRefreshCookie(res: Response, token: string) {
-  res.cookie("refreshToken", token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    path: "/api/auth",
-    maxAge: 30 * 24 * 60 * 60 * 1000,
-  });
-}
+import { setRefreshCookie } from "../lib/cookies";
 
 function hashToken(token: string): string {
   return crypto.createHash("sha256").update(token).digest("hex");
@@ -152,22 +144,49 @@ router.post("/totp/authenticate", totpRateLimiter, async (req, res) => {
   }
   const { mfaToken, code } = parsed.data;
 
+  let payload: any;
   try {
-    const payload = verifyAccessToken(mfaToken);
-
-    // Purpose & challenge token validation
-    if (payload.purpose !== "mfa_challenge" || !payload.jti) {
-      return res.status(401).json({ error: "Invalid challenge token" });
+    payload = verifyAccessToken(mfaToken);
+  } catch (err: any) {
+    if (err?.name === "TokenExpiredError") {
+      return res.status(401).json({ error: "Challenge token has expired" });
     }
+    return res.status(401).json({ error: "Invalid challenge token" });
+  }
 
-    // Replay protection: check single-use JTI
-    if (isMfaChallengeJtiUsed(payload.jti)) {
-      await recordAuditEvent(payload.sub, "MFA_VERIFICATION_FAILURE", { reason: "replay_attempt" });
-      return res.status(401).json({ error: "Challenge token has already been used" });
+  // 1. Purpose & token structure validation
+  if (payload.purpose !== "mfa_challenge" || !payload.jti || !payload.sub) {
+    return res.status(401).json({ error: "Invalid challenge token" });
+  }
+
+  // 2. User binding validation
+  const user = await prisma.user.findUnique({ where: { id: payload.sub } });
+  if (!user || user.isSuspended) {
+    return res.status(401).json({ error: "User not found or suspended" });
+  }
+
+  // 3. Expiry alignment (never permit a consumed JTI to become reusable while token is valid)
+  const nowUnix = Math.floor(Date.now() / 1000);
+  const remainingTtl = payload.exp ? Math.max(1, payload.exp - nowUnix) : 300;
+  const storeTtl = remainingTtl + 60; // Clock-skew buffer
+
+  // 4. Atomic single-use JTI consumption
+  let consumed = false;
+  try {
+    consumed = await consumeMfaChallengeJti(payload.jti, storeTtl);
+  } catch (err) {
+    if (err instanceof ChallengeStoreUnavailableError) {
+      return res.status(503).json({ error: "Security verification service temporarily unavailable" });
     }
-    markMfaChallengeJtiUsed(payload.jti);
+    throw err;
+  }
 
-    const user = await prisma.user.findUniqueOrThrow({ where: { id: payload.sub } });
+  if (!consumed) {
+    await recordAuditEvent(payload.sub, "MFA_VERIFICATION_FAILURE", { reason: "replay_attempt" });
+    return res.status(401).json({ error: "Challenge token has already been used" });
+  }
+
+  try {
     const mfa = await prisma.mfaMethod.findFirst({
       where: { userId: user.id, type: "TOTP", verifiedAt: { not: null } },
     });
@@ -225,7 +244,6 @@ router.post("/totp/authenticate", totpRateLimiter, async (req, res) => {
     setRefreshCookie(res, refreshToken);
     res.json({
       accessToken,
-      refreshToken,
       kdf: {
         salt: user.kdfSalt,
         memoryKb: user.kdfMemoryKb,
@@ -293,4 +311,5 @@ router.post("/totp/disable", requireAuth, totpRateLimiter, async (req: AuthedReq
   res.json({ success: true, message: "MFA disabled and other active sessions revoked for security" });
 });
 
+export { totpRateLimiter };
 export default router;
